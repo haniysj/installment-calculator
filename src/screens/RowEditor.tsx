@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  changeInstallmentDate, deleteInstallment, dueOf, editInstallment, maxPlannedFor, paidFor, postponeInstallment,
+  changeInstallmentDate, deleteInstallment, dueOf, installmentNo, editInstallment, maxPlannedFor, paidFor, postponeInstallment,
   recordPayment, rowStatus, setInstallmentNote, skipInstallment, unskipInstallment, type FollowMode,
 } from '../lib/engine';
 import { formatDateLong, todayISO } from '../lib/dates';
@@ -43,7 +43,7 @@ export function RowEditor({ plan, row, onClose, onRun }: { plan: Plan; row: Inst
   const isOver = amount != null && amount > due;
 
   return (
-    <Modal open onClose={onClose} wide title={<span>القسط <span className="num">{index + 1}</span> — {formatDateLong(row.dueDate)}</span>}>
+    <Modal open onClose={onClose} wide title={<span>القسط <span className="num">{installmentNo(plan, row.id)}</span> — {formatDateLong(row.dueDate)}</span>}>
       <div className="grid gap-4">
         <div className="grid grid-cols-3 gap-2 text-center text-[12.5px]">
           <div className="rounded-xl bg-card-2 border border-line p-2"><div className="text-muted font-bold">المخطط</div><div className="font-extrabold text-[15px]"><Money value={row.planned} /></div></div>

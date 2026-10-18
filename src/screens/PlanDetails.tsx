@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
   addInstallment, buildSchedule, changeFixedAmount, changePrincipal, changeInstallmentDate, editInstallment, firstOpenIndex,
   recalc, restoreDefault, resetPlan, summarize, uid, type ScheduleEntry,
@@ -16,13 +16,11 @@ import { FinalPill, StatusPill } from '../components/Status';
 import { PrintView, exportCSV } from '../components/PrintView';
 import { RowEditor } from './RowEditor';
 
-type SortKey = 'no' | 'date';
 
 export function PlanDetails({ id }: { id: string }) {
   const app = useApp();
   const { getPlan, settings, apply, unit, confirm, upsertPlan, removePlan, toast, updateSettings } = app;
   const plan = getPlan(id);
-  const [sortKey, setSortKey] = useState<SortKey>('no');
   const [asc, setAsc] = useState(true);
   const [editing, setEditing] = useState<string | null>(null);
   const [renaming, setRenaming] = useState(false);
@@ -35,16 +33,8 @@ export function PlanDetails({ id }: { id: string }) {
   }, [plan?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const entries = useMemo(() => (plan ? buildSchedule(plan) : []), [plan]);
-  const sorted = useMemo(() => {
-    const list = entries.slice();
-    if (sortKey === 'no') {
-      const ins = list.filter((e) => e.type === 'installment');
-      const other = list.filter((e) => e.type !== 'installment');
-      const res = [...ins.sort((a, b) => a.no! - b.no!), ...other];
-      return asc ? res : res.reverse();
-    }
-    return asc ? list : list.reverse();
-  }, [entries, sortKey, asc]);
+  // always chronological (installments and extra payments together): previous → current month → upcoming
+  const sorted = useMemo(() => (asc ? entries : entries.slice().reverse()), [entries, asc]);
 
   if (!plan) {
     return <Card className="p-4"><EmptyState icon="info" title="الخطة غير موجودة" body="ربما حُذفت. ارجع إلى قائمة الخطط."
@@ -178,11 +168,8 @@ export function PlanDetails({ id }: { id: string }) {
       <Card className="p-3 sm:p-5 no-print">
         <CardTitle icon="calendar" actions={
           <>
-            <select aria-label="ترتيب الجدول" className="field !w-auto !min-h-9 !py-1 !px-2 text-[13px] font-bold" value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)}>
-              <option value="no">حسب الرقم</option>
-              <option value="date">حسب التاريخ</option>
-            </select>
-            <button onClick={() => setAsc((a) => !a)} aria-label={asc ? 'ترتيب تنازلي' : 'ترتيب تصاعدي'} className="size-9 grid place-items-center rounded-lg border border-line hover:bg-card-2">
+<span className="text-[12.5px] font-bold text-muted hidden sm:inline">حسب التاريخ</span>
+            <button onClick={() => setAsc((a) => !a)} aria-label={asc ? 'عرض الأحدث أولاً' : 'عرض الأقدم أولاً'} className="size-9 grid place-items-center rounded-lg border border-line hover:bg-card-2">
               <Icon name="sort" size={17} className={asc ? '' : 'rotate-180'} />
             </button>
           </>
@@ -205,7 +192,14 @@ export function PlanDetails({ id }: { id: string }) {
               </tr>
             </thead>
             <tbody>
-              {sorted.map((e) => <DesktopRow key={e.key} plan={plan} e={e} onRun={run} onOpen={() => setEditing(e.id)} />)}
+              {sorted.map((e, k) => (
+                <Fragment key={e.key}>
+                  {(k === 0 || sorted[k - 1].period !== e.period) && (
+                    <tr><td colSpan={7} className="px-3 pt-3 pb-1.5 bg-card"><PeriodLabel period={e.period} /></td></tr>
+                  )}
+                  <DesktopRow plan={plan} e={e} onRun={run} onOpen={() => setEditing(e.id)} />
+                </Fragment>
+              ))}
             </tbody>
             <tfoot>
               <tr className="bg-card-2 font-extrabold border-t-2 border-line">
@@ -221,7 +215,12 @@ export function PlanDetails({ id }: { id: string }) {
 
         {/* mobile cards */}
         <ul className="md:hidden grid gap-2">
-          {sorted.map((e) => <MobileRow key={e.key} e={e} onOpen={() => e.type === 'installment' ? setEditing(e.id) : go(`/plan/${plan.id}/payments`)} />)}
+          {sorted.map((e, k) => (
+            <Fragment key={e.key}>
+              {(k === 0 || sorted[k - 1].period !== e.period) && <li className="pt-2 first:pt-0"><PeriodLabel period={e.period} /></li>}
+              <MobileRow e={e} onOpen={() => e.type === 'installment' ? setEditing(e.id) : go(`/plan/${plan.id}/payments`)} />
+            </Fragment>
+          ))}
         </ul>
         <div className="md:hidden mt-3 rounded-xl bg-card-2 border border-line p-3 grid grid-cols-3 gap-2 text-center text-[12px]">
           <div><div className="text-muted font-bold">إجمالي المخطط</div><div className="font-extrabold text-[13.5px]"><Money value={s.totalPlanned} /></div></div>
@@ -242,6 +241,17 @@ export function PlanDetails({ id }: { id: string }) {
 
       {editingRow && <RowEditor plan={plan} row={editingRow} onClose={() => setEditing(null)} onRun={run} />}
       {renaming && <RenameModal plan={plan} onClose={() => setRenaming(false)} />}
+    </div>
+  );
+}
+
+function PeriodLabel({ period }: { period: ScheduleEntry['period'] }) {
+  const t = period === 'past' ? { label: 'السابقة', cls: 'text-teal', dot: 'bg-teal' }
+    : period === 'current' ? { label: 'الشهر الحالي', cls: 'text-brand', dot: 'bg-brand' }
+    : { label: 'القادمة', cls: 'text-muted', dot: 'bg-muted' };
+  return (
+    <div className={`flex items-center gap-2 text-[13px] font-extrabold ${t.cls}`}>
+      <span className={`size-2 rounded-full ${t.dot}`} />{t.label}<span className="flex-1 h-px bg-line" />
     </div>
   );
 }

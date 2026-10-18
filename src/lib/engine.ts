@@ -546,6 +546,7 @@ export interface ScheduleEntry {
   status: RowStatus | 'extra' | 'down';
   isFinal: boolean;
   isCurrentMonth: boolean;
+  period: Period;
   overdue: boolean;
   note: string;
   index: number;
@@ -570,20 +571,41 @@ export function finalIndex(plan: Plan): number {
   return -1;
 }
 
+/** Display number of an installment: counts only months that are part of the plan (cancelled rows are skipped). */
+export function installmentNumbers(plan: Plan): Map<string, number> {
+  const m = new Map<string, number>();
+  let n = 0;
+  for (const r of plan.installments) if (!r.cancelled) m.set(r.id, ++n);
+  return m;
+}
+
+export function installmentNo(plan: Plan, id: string | null | undefined): number {
+  return id ? installmentNumbers(plan).get(id) ?? 0 : 0;
+}
+
+export type Period = 'past' | 'current' | 'future';
+
+export function periodOf(date: ISODate, today: ISODate): Period {
+  const a = date.slice(0, 7), b = today.slice(0, 7);
+  return a < b ? 'past' : a > b ? 'future' : 'current';
+}
+
 export function buildSchedule(plan: Plan, today: ISODate = todayISO()): ScheduleEntry[] {
   const fi = finalIndex(plan);
+  const nums = installmentNumbers(plan);
   type Ev = { order: number; date: ISODate; entry: Omit<ScheduleEntry, 'balanceAfter'>; deduct: number };
   const evs: Ev[] = [];
   plan.installments.forEach((r, i) => {
+    if (r.cancelled) return; // months no longer part of the plan are not shown
     const pd = paidFor(plan, r.id);
     const st = rowStatus(plan, r, today);
     evs.push({
       order: 1, date: r.dueDate,
       deduct: pd + dueOf(plan, r),
       entry: {
-        key: r.id, type: 'installment', no: i + 1, id: r.id, date: r.dueDate,
+        key: r.id, type: 'installment', no: nums.get(r.id)!, id: r.id, date: r.dueDate,
         planned: r.planned, actual: pd, status: st, isFinal: i === fi,
-        isCurrentMonth: sameMonth(r.dueDate, today),
+        isCurrentMonth: sameMonth(r.dueDate, today), period: periodOf(r.dueDate, today),
         overdue: !r.closed && !r.skipped && !r.cancelled && r.dueDate < today,
         note: r.note, index: i,
       },
@@ -595,7 +617,7 @@ export function buildSchedule(plan: Plan, today: ISODate = todayISO()): Schedule
       entry: {
         key: x.id, type: x.kind as 'extra' | 'down', no: null, id: x.id, date: x.date, planned: null,
         actual: x.amount, status: x.kind as 'extra' | 'down', isFinal: false,
-        isCurrentMonth: sameMonth(x.date, today), overdue: false, note: x.note, index: -1,
+        isCurrentMonth: sameMonth(x.date, today), period: periodOf(x.date, today), overdue: false, note: x.note, index: -1,
       },
     });
   });

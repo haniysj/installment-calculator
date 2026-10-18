@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { deletePayment, dueOf, outstanding, recordPayment, regularAmount, summarize } from '../lib/engine';
+import { deletePayment, dueOf, installmentNumbers, outstanding, recordPayment, regularAmount, summarize } from '../lib/engine';
 import { formatDateShort, todayISO } from '../lib/dates';
 import type { PaymentKind } from '../lib/types';
 import { useApp } from '../store';
@@ -35,7 +35,8 @@ export function Payments({ id, installmentId }: { id: string; installmentId?: st
   const due = selRow ? dueOf(plan, selRow) : 0;
   const err = amount == null ? null : amount <= 0 ? 'المبلغ يجب أن يكون أكبر من صفر.' : amount > out ? 'المبلغ يتجاوز الرصيد المتبقي.' : null;
   const history = [...plan.payments].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.createdAt < b.createdAt ? 1 : -1));
-  const rowNo = (iid: string | null) => (iid ? plan.installments.findIndex((r) => r.id === iid) + 1 : 0);
+  const nums = installmentNumbers(plan);
+  const rowNo = (iid: string | null) => (iid ? nums.get(iid) ?? 0 : 0);
 
   async function submit() {
     if (amount == null || err) return;
@@ -69,8 +70,8 @@ export function Payments({ id, installmentId }: { id: string; installmentId?: st
                     const r = plan.installments.find((x) => x.id === e.target.value);
                     setAmount(r ? dueOf(plan, r) : null);
                   }}>
-                    {openRows.map(({ r, i }) => (
-                      <option key={r.id} value={r.id}>القسط {i + 1} — {formatDateShort(r.dueDate)} — مستحق {(dueOf(plan, r) / 1000).toFixed(3)} ر.ع.</option>
+                    {openRows.map(({ r }) => (
+                      <option key={r.id} value={r.id}>القسط {nums.get(r.id)} — {formatDateShort(r.dueDate)} — مستحق {(dueOf(plan, r) / 1000).toFixed(3)} ر.ع.</option>
                     ))}
                   </select>
                 </Field>

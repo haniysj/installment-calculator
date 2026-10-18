@@ -319,3 +319,25 @@ describe('schedule operations', () => {
     }
   });
 });
+
+describe('schedule view follows the plan', () => {
+  it('hides months that are no longer part of the plan and renumbers', () => {
+    let p = make({ mode: 'fixed', fixedAmount: R(150), firstDate: '2026-09-01' });
+    p = ok(recordPayment(p, { date: '2026-09-01', amount: R(150), kind: 'installment', installmentId: p.installments[0].id }));
+    p = ok(recordPayment(p, { date: '2026-09-20', amount: R(300), kind: 'extra', extraStrategy: 'shorten' }));
+    const s = buildSchedule(p, TODAY);
+    expect(s.some((e) => e.status === 'cancelled')).toBe(false);
+    const nos = s.filter((e) => e.type === 'installment').map((e) => e.no);
+    expect(nos).toEqual([1, 2, 3, 4, 5]);
+    expect(s[s.length - 1].balanceAfter).toBe(0);
+  });
+  it('orders paid months and extra payments by date: past, current, future', () => {
+    let p = make({ months: 4, firstDate: '2026-09-05' }); // Sep, Oct, Nov, Dec
+    p = ok(recordPayment(p, { date: '2026-09-05', amount: R(250), kind: 'installment', installmentId: p.installments[0].id }));
+    p = ok(recordPayment(p, { date: '2026-09-25', amount: R(100), kind: 'extra', extraStrategy: 'reduce' }));
+    const s = buildSchedule(p, TODAY);
+    expect(s.map((e) => e.date)).toEqual([...s.map((e) => e.date)].sort());
+    expect(s.map((e) => e.type)).toEqual(['installment', 'extra', 'installment', 'installment', 'installment']);
+    expect(s.map((e) => e.period)).toEqual(['past', 'past', 'current', 'future', 'future']);
+  });
+});
