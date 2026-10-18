@@ -9,7 +9,7 @@ import { formatAmount, parseRial, toInputValue } from '../lib/money';
 import type { Plan, Strategy } from '../lib/types';
 import { useApp } from '../store';
 import { go } from '../router';
-import { Button, Card, CardTitle, DateBadge, EmptyState, Field, Modal, MoneyInput, Notice, Pill, ProgressRing, Segmented } from '../components/ui';
+import { Button, Card, CardTitle, DateBadge, DateInput, EmptyState, Field, Modal, MoneyInput, Notice, Pill, ProgressRing, Segmented } from '../components/ui';
 import { FileIcon, Icon } from '../components/Icon';
 import { AnimatedMoney, Money } from '../components/Money';
 import { FinalPill, StatusPill } from '../components/Status';
@@ -311,8 +311,7 @@ function DesktopRow({ plan, e, onRun, onOpen }: { plan: Plan; e: ScheduleEntry; 
       <td className="p-2.5 num font-bold"><span className="inline-flex items-center gap-1">{e.no}{e.type !== 'installment' && <Icon name="coins" size={14} className="text-blue" />}</span></td>
       <td className="p-2">
         {editable ? (
-          <input type="date" aria-label={`تاريخ القسط ${e.no}`} className="bg-transparent border border-transparent hover:border-line focus:border-ink-2 rounded-lg px-2 py-1 num"
-            value={e.date} onChange={(ev) => ev.target.value && onRun(changeInstallmentDate(plan, row!.id, ev.target.value))} />
+          <DateInput compact ariaLabel={`تاريخ القسط ${e.no}`} value={e.date} onChange={(v) => { if (v && v !== e.date) onRun(changeInstallmentDate(plan, row!.id, v)); }} />
         ) : <span className="num px-2">{formatDateShort(e.date)}</span>}
         {e.isCurrentMonth && e.type === 'installment' && <span className="ms-1 text-[11px] font-bold text-brand">● الشهر الحالي</span>}
       </td>
@@ -417,7 +416,7 @@ function PlanControls({ plan, onRun, onStrategy }: { plan: Plan; onRun: (r: any)
         </Field>
         <Field label="تاريخ أول قسط (بداية الخطة)" htmlFor="pc-first" hint="إذا بدأت الخطة قبل إدخالها في النظام اختر تاريخها الفعلي؛ تنتقل كل المواعيد معها، والدفعات المسجّلة لا تتغير.">
           <div className="flex gap-2">
-            <input id="pc-first" type="date" className="field" value={first} onChange={(e) => setFirst(e.target.value)} />
+            <div className="flex-1"><DateInput id="pc-first" value={first} onChange={setFirst} /></div>
             <Button disabled={!first || first === currentFirst} onClick={() => onRun(changeFirstDate(plan, first))}>حفظ</Button>
           </div>
         </Field>
@@ -473,7 +472,7 @@ export function RenameModal({ plan, onClose }: { plan: Plan; onClose: () => void
   }
   return (
     <Modal open onClose={onClose} title="اسم الخطة والملاحظات"
-      footer={<><Button onClick={onClose}>إلغاء</Button><Button variant="primary" onClick={save} disabled={!name.trim()}>حفظ</Button></>}>
+      footer={<><Button variant="primary" onClick={save} disabled={!name.trim()}>حفظ</Button><Button onClick={onClose}>إلغاء</Button></>}>
       <div className="grid gap-3">
         <Field label="اسم الخطة" htmlFor="rn" error={!name.trim() ? 'الاسم مطلوب.' : null}>
           <input id="rn" className="field" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && save()} />

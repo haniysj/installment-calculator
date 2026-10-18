@@ -156,7 +156,7 @@ export function Modal({ open, onClose, title, children, footer, wide = false }:
           <button type="button" onClick={onClose} aria-label="إغلاق" className="size-9 grid place-items-center rounded-lg hover:bg-card-2 text-muted"><Icon name="x" /></button>
         </div>
         <div className="overflow-y-auto px-5 py-4 flex-1">{children}</div>
-        {footer && <div className="px-5 py-3 border-t border-line flex flex-wrap gap-2 justify-end" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>{footer}</div>}
+        {footer && <div className="px-5 py-3 border-t border-line flex flex-wrap gap-2 justify-start" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>{footer}</div>}
       </div>
     </div>
   );
@@ -166,11 +166,12 @@ export function ConfirmHost() {
   const { confirmReq, closeConfirm } = useApp();
   return (
     <Modal open={!!confirmReq} onClose={() => closeConfirm(false)} title={confirmReq?.title}
-      footer={<>
+      footer={confirmReq?.danger ? <>
+        <Button onClick={() => closeConfirm(false)} autoFocus>إلغاء</Button>
+        <Button variant="danger" className="ms-auto" onClick={() => closeConfirm(true)}>{confirmReq?.confirmText ?? 'تأكيد'}</Button>
+      </> : <>
+        <Button variant="primary" onClick={() => closeConfirm(true)} autoFocus>{confirmReq?.confirmText ?? 'تأكيد'}</Button>
         <Button onClick={() => closeConfirm(false)}>إلغاء</Button>
-        <Button variant={confirmReq?.danger ? 'danger' : 'primary'} onClick={() => closeConfirm(true)} autoFocus>
-          {confirmReq?.confirmText ?? 'تأكيد'}
-        </Button>
       </>}>
       <p className="text-ink-2 leading-relaxed">{confirmReq?.body}</p>
     </Modal>
@@ -230,6 +231,53 @@ export function ProgressRing({ value, size = 104, stroke = 10, light = false }: 
       <div className="absolute inset-0 grid place-items-center text-center leading-none">
         <div><div className="num font-extrabold text-[20px]">{Math.round(v)}%</div><div className="text-[10.5px] font-bold opacity-80 mt-1">مسدَّد</div></div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Date field shown as dd/mm/yyyy on every device (native date inputs follow the phone's locale).
+ * Type the date (slashes are added automatically) or pick it from the calendar button.
+ * Value in/out is ISO yyyy-mm-dd ('' while incomplete).
+ */
+export function DateInput({ id, value, onChange, ariaLabel, compact = false }:
+  { id?: string; value: string; onChange: (iso: string) => void; ariaLabel?: string; compact?: boolean }) {
+  const toDisplay = (iso: string) => (/^\d{4}-\d{2}-\d{2}$/.test(iso) ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : '');
+  const [raw, setRaw] = useState(toDisplay(value));
+  const last = useRef(value);
+  const picker = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (value !== last.current) { last.current = value; setRaw(toDisplay(value)); }
+  }, [value]);
+  function parse(text: string): string {
+    const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(text);
+    if (!m) return '';
+    const [d, mo, y] = [Number(m[1]), Number(m[2]), Number(m[3])];
+    if (mo < 1 || mo > 12 || d < 1 || d > new Date(y, mo, 0).getDate() || y < 1900) return '';
+    return `${m[3]}-${m[2]}-${m[1]}`;
+  }
+  function onType(text: string) {
+    const digits = text.replace(/[٠-٩]/g, (c) => String(c.charCodeAt(0) - 0x660)).replace(/\D/g, '').slice(0, 8);
+    const masked = digits.length > 4 ? `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`
+      : digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits;
+    setRaw(masked);
+    const iso = parse(masked);
+    last.current = iso;
+    onChange(iso);
+  }
+  const invalid = raw.length === 10 && !parse(raw);
+  return (
+    <div className={compact ? 'relative inline-block' : 'relative'}>
+      <input id={id} aria-label={ariaLabel} inputMode="numeric" dir="ltr" autoComplete="off" placeholder="dd/mm/yyyy"
+        className={compact ? 'bg-transparent border border-transparent hover:border-line focus:border-ink-2 rounded-lg pl-7 pr-2 py-1 num w-[8.5rem] text-left' : 'field num text-left pl-11'}
+        aria-invalid={invalid || undefined} value={raw} onChange={(e) => onType(e.target.value)} />
+      <button type="button" tabIndex={-1} aria-label="اختيار من التقويم"
+        className={`absolute top-1/2 -translate-y-1/2 grid place-items-center text-muted hover:text-brand ${compact ? 'left-1 size-6' : 'left-2 size-8'}`}
+        onClick={() => { const el = picker.current; if (!el) return; try { el.showPicker(); } catch { el.focus(); el.click(); } }}>
+        <Icon name="calendar" size={compact ? 15 : 18} />
+      </button>
+      <input ref={picker} type="date" tabIndex={-1} aria-hidden="true" className="absolute left-0 bottom-0 w-0 h-0 opacity-0 pointer-events-none"
+        value={/^\d{4}-\d{2}-\d{2}$/.test(value) ? value : ''} onChange={(e) => { if (e.target.value) { setRaw(toDisplay(e.target.value)); last.current = e.target.value; onChange(e.target.value); } }} />
     </div>
   );
 }

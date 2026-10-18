@@ -54,14 +54,13 @@ export function monthName(m: number): string {
   return AR_MONTHS[m - 1];
 }
 
-/** "18 أكتوبر 2026" */
-export function formatDateLong(s: ISODate): string {
-  const { y, m, d } = parseISO(s);
-  return `${d} ${AR_MONTHS[m - 1]} ${y}`;
-}
-
-/** "2026/10/18" (unambiguous, numeric) */
+/** dd/mm/yyyy (the app's single date format) */
 export function formatDateShort(s: ISODate): string {
   const { y, m, d } = parseISO(s);
-  return `${y}/${pad(m)}/${pad(d)}`;
+  return `${pad(d)}/${pad(m)}/${y}`;
+}
+
+/** Same format as formatDateShort: dd/mm/yyyy */
+export function formatDateLong(s: ISODate): string {
+  return formatDateShort(s);
 }

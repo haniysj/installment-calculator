@@ -3,11 +3,11 @@ import {
   changeInstallmentDate, deleteInstallment, dueOf, installmentNo, editInstallment, maxPlannedFor, paidFor, postponeInstallment,
   recordPayment, rowStatus, setInstallmentNote, skipInstallment, unskipInstallment, type FollowMode,
 } from '../lib/engine';
-import { formatDateLong, todayISO } from '../lib/dates';
+import { formatDateLong, formatDateShort, todayISO } from '../lib/dates';
 import type { Installment, Plan } from '../lib/types';
 import { useApp } from '../store';
 import { go } from '../router';
-import { Button, Field, Modal, MoneyInput, Notice, Segmented } from '../components/ui';
+import { Button, DateInput, Field, Modal, MoneyInput, Notice, Segmented } from '../components/ui';
 import { Icon } from '../components/Icon';
 import { Money } from '../components/Money';
 import { StatusPill } from '../components/Status';
@@ -68,7 +68,7 @@ export function RowEditor({ plan, row, onClose, onRun, onEditPayment }: { plan: 
                 <MoneyInput id="re-amt" value={amount} onChange={setAmount} invalid={!!payErr} autoFocus />
               </Field>
               <Field label="تاريخ الدفع" htmlFor="re-date">
-                <input id="re-date" type="date" className="field" value={date} onChange={(e) => setDate(e.target.value)} />
+                <DateInput id="re-date" value={date} onChange={setDate} />
               </Field>
             </div>
             {isPartial && (
@@ -79,12 +79,12 @@ export function RowEditor({ plan, row, onClose, onRun, onEditPayment }: { plan: 
               </label>
             )}
             {isOver && <Notice tone="blue">المبلغ أكبر من المستحق؛ الزيادة (<Money value={(amount ?? 0) - due} />) تُخصم من الأقساط اللاحقة.</Notice>}
-            <div className="flex flex-wrap gap-2 justify-end">
-              <Button onClick={() => go(`/plan/${plan.id}/payments?row=${row.id}`)} icon={<Icon name="receipt" size={16} />}>شاشة الدفعات</Button>
+            <div className="flex flex-wrap gap-2 justify-start">
               <Button variant="success" icon={<Icon name="check" size={18} />} disabled={!!payErr}
                 onClick={() => done(recordPayment(plan, { date, amount: amount!, kind: 'installment', installmentId: row.id, closeRow }, unit))}>
                 {amount === due ? 'تسجيل كمدفوع' : 'تسجيل الدفعة'}
               </Button>
+              <Button onClick={() => go(`/plan/${plan.id}/payments?row=${row.id}`)} icon={<Icon name="receipt" size={16} />}>شاشة الدفعات</Button>
             </div>
           </div>
         )}
@@ -108,7 +108,7 @@ export function RowEditor({ plan, row, onClose, onRun, onEditPayment }: { plan: 
               </div>
             </Field>
             <p className="text-[12.5px] text-muted">الأقساط السابقة لهذا القسط لا تتغير. أي فرق تقريب يُسوّى في القسط الأخير.</p>
-            <div className="flex justify-end">
+            <div className="flex justify-start">
               <Button variant="primary" disabled={!!editErr} icon={<Icon name="check" size={18} />}
                 onClick={() => done(editInstallment(plan, row.id, planned!, follow, unit))}>حفظ وإعادة الحساب</Button>
             </div>
@@ -120,7 +120,7 @@ export function RowEditor({ plan, row, onClose, onRun, onEditPayment }: { plan: 
             {open && (
               <Field label="تاريخ الدفع المخطط" htmlFor="re-due">
                 <div className="flex gap-2">
-                  <input id="re-due" type="date" className="field" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+                  <div className="flex-1"><DateInput id="re-due" value={dueDate} onChange={setDueDate} /></div>
                   <Button disabled={dueDate === row.dueDate || !dueDate} onClick={() => done(changeInstallmentDate(plan, row.id, dueDate))}>حفظ</Button>
                 </div>
               </Field>
@@ -148,7 +148,7 @@ export function RowEditor({ plan, row, onClose, onRun, onEditPayment }: { plan: 
                   <button key={x.id} onClick={() => onEditPayment(x.id)}
                     className="flex items-center gap-2.5 rounded-xl border border-line px-3 py-2 text-right hover:bg-card-2">
                     <Icon name="check" size={16} className="text-teal" />
-                    <span className="num text-[13px] flex-1">{x.date.replace(/-/g, '/')}{x.note && <span className="text-muted"> — {x.note}</span>}</span>
+                    <span className="num text-[13px] flex-1">{formatDateShort(x.date)}{x.note && <span className="text-muted"> — {x.note}</span>}</span>
                     <Money value={x.amount} className="font-extrabold text-teal" />
                     <Icon name="edit" size={15} className="text-muted" />
                   </button>

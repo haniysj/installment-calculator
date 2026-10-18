@@ -5,7 +5,7 @@ import { formatAmount } from '../lib/money';
 import type { PaymentKind } from '../lib/types';
 import { useApp } from '../store';
 import { go } from '../router';
-import { Button, Card, CardTitle, EmptyState, Field, MoneyInput, Notice, Pill, ProgressBar, Segmented } from '../components/ui';
+import { Button, Card, CardTitle, DateInput, EmptyState, Field, MoneyInput, Notice, Pill, ProgressBar, Segmented } from '../components/ui';
 import { Icon } from '../components/Icon';
 import { Money } from '../components/Money';
 import { PaymentEditor } from './PaymentEditor';
@@ -98,7 +98,7 @@ export function Payments({ id, installmentId }: { id: string; installmentId?: st
                 <MoneyInput id="pay-amt" value={amount} onChange={setAmount} invalid={!!err} />
               </Field>
               <Field label="تاريخ الدفع" htmlFor="pay-date">
-                <input id="pay-date" type="date" className="field" value={date} onChange={(e) => setDate(e.target.value)} />
+                <DateInput id="pay-date" value={date} onChange={setDate} />
               </Field>
             </div>
             {kind === 'installment' && amount != null && amount > 0 && amount < due && (
@@ -110,7 +110,7 @@ export function Payments({ id, installmentId }: { id: string; installmentId?: st
             <Field label="ملاحظة (اختياري)" htmlFor="pay-note">
               <input id="pay-note" className="field" value={note} maxLength={200} onChange={(e) => setNote(e.target.value)} placeholder="مثال: تحويل بنكي" />
             </Field>
-            <div className="flex justify-end">
+            <div className="flex justify-start">
               <Button type="submit" variant="success" disabled={amount == null || !!err || (kind === 'installment' && !rowId)} icon={<Icon name="check" size={18} />}>حفظ الدفعة</Button>
             </div>
           </form>

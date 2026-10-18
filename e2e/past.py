@@ -10,7 +10,7 @@ with sync_playwright() as p:
     pg = ctx.new_page()
     pg.on('pageerror', lambda e: errors.append(str(e)))
     pg.goto(B + '/#/new')
-    pg.fill('#name', 'جهاز'); pg.fill('#principal', '1200'); pg.fill('#firstDate', '2026-05-10'); pg.fill('#fixed', '100')
+    pg.fill('#name', 'جهاز'); pg.fill('#principal', '1200'); pg.fill('#firstDate', '10/05/2026'); pg.fill('#fixed', '100')
     pg.get_by_text('بدأت هذه الخطة سابقاً').click()
     expect(pg.locator('#paidBefore')).to_have_value('6')  # May..Oct 10 are before 18 Oct
     pg.fill('#paidBefore', '5')
@@ -24,7 +24,7 @@ with sync_playwright() as p:
     expect(pg.get_by_text('تم تسجيل 1 قسط سابق').first).to_be_visible()
     # extra payment in the past
     pg.goto(url + '/payments')
-    pg.get_by_role('radio', name='دفعة إضافية').click(); pg.fill('#pay-amt', '200'); pg.fill('#pay-date', '2026-07-20')
+    pg.get_by_role('radio', name='دفعة إضافية').click(); pg.fill('#pay-amt', '200'); pg.fill('#pay-date', '20/07/2026')
     pg.get_by_role('button', name='حفظ الدفعة').click(); pg.wait_for_timeout(400)
     # edit that extra payment from history
     pg.locator('li', has_text='دفعة إضافية').get_by_role('button', name='تعديل الدفعة').click()
@@ -42,9 +42,21 @@ with sync_playwright() as p:
     txt = pg.inner_text('main')
     assert re.search(r'أقساط مدفوعة\s*7', txt), txt[:400]
     # move start date one month earlier
-    pg.goto(url); pg.fill('#pc-first', '2026-04-10')
-    pg.locator('#pc-first').locator('xpath=..').get_by_role('button', name='حفظ').click()
+    pg.goto(url); pg.fill('#pc-first', '10/04/2026')
+    pg.get_by_role('button', name='حفظ', exact=True).click()
     expect(pg.get_by_text('تم تغيير بداية الخطة').first).to_be_visible()
+    # dates are shown as dd/mm/yyyy everywhere
+    pg.goto(url); pg.wait_for_timeout(800)
+    t = pg.inner_text('main')
+    assert re.search(r'\b\d{2}/\d{2}/\d{4}\b', t) and not re.search(r'\b\d{4}/\d{2}/\d{2}\b', t), 'date format'
+    # payment editor: save on the right, delete on the left
+    pg.goto(url + '/payments')
+    pg.locator('li', has_text='دفعة إضافية').get_by_role('button', name='تعديل الدفعة').click()
+    dlg = pg.get_by_role('dialog')
+    save_x = dlg.get_by_role('button', name='حفظ التعديل').bounding_box()['x']
+    del_x = dlg.get_by_role('button', name='حذف').bounding_box()['x']
+    assert save_x > del_x, 'save must be right of delete'
+    pg.screenshot(path=f'{OUT}/past-03-edit-payment.png')
     b.close()
 if errors:
     print('\n'.join(errors)); sys.exit(1)

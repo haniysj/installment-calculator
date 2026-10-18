@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { deletePayment, editPayment, installmentNo, totalPaid } from '../lib/engine';
 import type { Plan } from '../lib/types';
 import { useApp } from '../store';
-import { Button, Field, Modal, MoneyInput, Notice } from '../components/ui';
+import { Button, DateInput, Field, Modal, MoneyInput, Notice } from '../components/ui';
 import { Icon } from '../components/Icon';
 import { Money } from '../components/Money';
 
@@ -35,9 +35,9 @@ export function PaymentEditor({ plan, paymentId, onClose }: { plan: Plan; paymen
   return (
     <Modal open onClose={onClose} title={<span>تعديل دفعة — {KIND_LABEL[pay.kind]} {no ? <span className="num">({no})</span> : null}</span>}
       footer={<>
-        <Button variant="danger" className="me-auto" icon={<Icon name="trash" size={16} />} onClick={remove}>حذف</Button>
-        <Button onClick={onClose}>إلغاء</Button>
         <Button variant="primary" icon={<Icon name="check" size={17} />} disabled={!!err || !changed} onClick={save}>حفظ التعديل</Button>
+        <Button onClick={onClose}>إلغاء</Button>
+        <Button variant="danger" className="ms-auto" icon={<Icon name="trash" size={16} />} onClick={remove}>حذف</Button>
       </>}>
       <div className="grid gap-3.5">
         <div className="grid sm:grid-cols-2 gap-3">
@@ -45,7 +45,7 @@ export function PaymentEditor({ plan, paymentId, onClose }: { plan: Plan; paymen
             <MoneyInput id="pe-amt" value={amount} onChange={setAmount} invalid={!!err && amount != null} autoFocus />
           </Field>
           <Field label="تاريخ الدفع" htmlFor="pe-date">
-            <input id="pe-date" type="date" className="field" value={date} onChange={(e) => setDate(e.target.value)} />
+            <DateInput id="pe-date" value={date} onChange={setDate} />
           </Field>
         </div>
         <Field label="ملاحظة" htmlFor="pe-note">

@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
 import { createPlan, markPastInstallmentsPaid, summarize } from '../lib/engine';
-import { addMonths, formatDateLong, todayISO } from '../lib/dates';
+import { addMonths, formatDateLong, formatDateShort, todayISO } from '../lib/dates';
 import type { Mode, PlanInput, SchedulingMethod } from '../lib/types';
 import { useApp } from '../store';
 import { go } from '../router';
-import { Button, Card, CardTitle, Field, MoneyInput, Notice, Pill, Segmented } from '../components/ui';
+import { Button, Card, CardTitle, DateInput, Field, MoneyInput, Notice, Pill, Segmented } from '../components/ui';
 import { Icon } from '../components/Icon';
 import { Money } from '../components/Money';
 
@@ -70,7 +70,7 @@ export function NewPlan() {
               <MoneyInput id="principal" value={principal} onChange={(v) => setPrincipal(v)} invalid={touched && !(principal && principal > 0)} />
             </Field>
             <Field label="تاريخ أول قسط" htmlFor="firstDate">
-              <input id="firstDate" type="date" className="field" value={firstDate} onChange={(e) => setFirstDate(e.target.value)} />
+              <DateInput id="firstDate" value={firstDate} onChange={setFirstDate} />
             </Field>
           </div>
           {isPastStart && (
@@ -112,7 +112,7 @@ export function NewPlan() {
               </label>
               {useFixedStart && (
                 <Field label="تاريخ بدء الأقساط الثابتة" htmlFor="fixedStart" hint="مفيد عند وجود دفعة أولى تُدفع في تاريخ أول قسط.">
-                  <input id="fixedStart" type="date" className="field" value={fixedStart} onChange={(e) => setFixedStart(e.target.value)} />
+                  <DateInput id="fixedStart" value={fixedStart} onChange={setFixedStart} />
                 </Field>
               )}
             </>
@@ -131,7 +131,7 @@ export function NewPlan() {
                 </Field>
               ) : (
                 <Field label="تاريخ آخر قسط" htmlFor="endDate" hint="يُحسب عدد الأشهر شاملاً شهر أول قسط وشهر آخر قسط.">
-                  <input id="endDate" type="date" className="field" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+                  <DateInput id="endDate" value={endDate} onChange={setEndDate} />
                 </Field>
               )}
             </>
@@ -145,9 +145,9 @@ export function NewPlan() {
           </Field>
 
           {showError && !result.ok && <Notice tone="rose">{result.error}</Notice>}
-          <div className="flex gap-2 justify-end">
-            <Button onClick={() => history.back()}>إلغاء</Button>
+          <div className="flex gap-2 justify-start">
             <Button variant="primary" type="submit" icon={<Icon name="check" size={18} />}>حفظ الخطة</Button>
+            <Button onClick={() => history.back()}>إلغاء</Button>
           </div>
         </form>
       </Card>
@@ -182,7 +182,7 @@ export function NewPlan() {
                   {preview.installments.map((r, i) => (
                     <tr key={r.id} className={`border-t border-line ${r.closed ? 'bg-teal-bg/50' : i === preview.installments.length - 1 ? 'bg-violet-bg/60 font-bold' : ''}`}>
                       <td className="p-2 num">{r.closed ? <span className="text-teal">✓ {i + 1}</span> : i + 1}</td>
-                      <td className="p-2 num">{r.dueDate.replace(/-/g, '/')}</td>
+                      <td className="p-2 num">{formatDateShort(r.dueDate)}</td>
                       <td className="p-2 text-left"><Money value={r.planned} /></td>
                     </tr>
                   ))}

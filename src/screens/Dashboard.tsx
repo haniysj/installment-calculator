@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { buildSchedule, resetPlan, summarize } from '../lib/engine';
-import { formatDateLong } from '../lib/dates';
+import { formatDateLong, formatDateShort } from '../lib/dates';
 import { MODE_LABEL } from '../lib/csv';
 import { useApp } from '../store';
 import { go } from '../router';
@@ -66,7 +66,7 @@ export function Dashboard() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 no-print">
         <Kpi icon="receipt" label="القسط الشهري الحالي" value={<AnimatedMoney value={s.currentInstallment} bold />} tone="brand" className="col-span-2 lg:col-span-1"
-          extra={s.currentInstallmentDate ? <span className="num text-[11.5px]">{s.currentInstallmentDate.replace(/-/g, '/')}</span> : null} />
+          extra={s.currentInstallmentDate ? <span className="num text-[11.5px]">{formatDateShort(s.currentInstallmentDate)}</span> : null} />
         <Kpi icon="check" label="أقساط مدفوعة" value={<span className="num">{s.paidCount}</span>} tone="teal" />
         <Kpi icon="clock" label="أقساط متبقية" value={<span className="num">{s.remainingCount}</span>}
           extra={s.overdueCount > 0 ? <Pill tone="rose">{s.overdueCount} متأخر</Pill> : null} />
