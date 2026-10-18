@@ -233,7 +233,9 @@ export function recalc(plan: Plan, from: number, opts: RecalcOptions = {}): Plan
     const free = active.filter((i) => !lockedIdx.includes(i));
     for (const i of lockedIdx) dues.set(i, due(rows[i]));
     if (free.length) {
-      equalSplit(T - lockedSum, free.length, unit).forEach((d, k) => dues.set(free[k], d));
+      const n2 = Math.max(1, Math.min(free.length, Math.floor((T - lockedSum) / unit)));
+      free.forEach((idx, k) => dues.set(idx, 0));
+      equalSplit(T - lockedSum, n2, unit).forEach((d, k) => dues.set(free[k], d));
     } else if (active.length) {
       const last = active[active.length - 1];
       dues.set(last, due(rows[last]) + (T - lockedSum));
@@ -284,7 +286,29 @@ export function recalc(plan: Plan, from: number, opts: RecalcOptions = {}): Plan
 // ───────────────────────── user operations ─────────────────────────
 
 function touch(plan: Plan): Plan {
-  return { ...plan, updatedAt: nowStamp() };
+  return { ...normalizeMonths(plan), updatedAt: nowStamp() };
+}
+
+/**
+ * One installment per month, consecutive, no gaps and no duplicates (skipped months keep their place).
+ * Rows stay in their order; each row k is placed in month (first + k). A row keeps its own day when it is
+ * already in the right month, otherwise it gets the plan's due day. Rows no longer needed go to the end.
+ * Returns the same object when nothing changes.
+ */
+export function normalizeMonths(plan: Plan): Plan {
+  const rows = plan.installments;
+  if (rows.length === 0) return plan;
+  const ordered = [...rows.filter((r) => !r.cancelled), ...rows.filter((r) => r.cancelled)];
+  const start = ordered[0].dueDate;
+  let changed = ordered.some((r, k) => r !== rows[k]);
+  const out = ordered.map((r, k) => {
+    if (k === 0) return r;
+    const expected = addMonths(start, k, plan.anchorDay);
+    if (sameMonth(r.dueDate, expected)) return r;
+    changed = true;
+    return { ...r, dueDate: expected };
+  });
+  return changed ? { ...plan, installments: out } : plan;
 }
 
 function findIndex(plan: Plan, id: string): number {
@@ -311,6 +335,7 @@ export function editInstallment(plan: Plan, id: string, newPlanned: number, foll
   if (row.closed) return { ok: false, error: 'لا يمكن تعديل قسط مدفوع. احذف الدفعة أولاً إن أردت التعديل.' };
   if (!Number.isInteger(newPlanned) || newPlanned < 0) return { ok: false, error: 'لا يمكن أن يكون القسط سالباً.' };
   const pd = paidFor(plan, id);
+  if (newPlanned === 0 && pd === 0) return skipInstallment(plan, id, unit);
   if (newPlanned < pd) return { ok: false, error: `القسط لا يمكن أن يقل عما دُفع منه (${fmt(pd)}).` };
   const max = maxPlannedFor(plan, i);
   if (newPlanned > max) return { ok: false, error: `القسط يتجاوز الرصيد المتبقي (${fmt(max)}).` };
@@ -456,10 +481,10 @@ export function attachMonthPayments(plan: Plan, unit = 1): Plan {
     changed = true;
     return { ...x, kind: 'installment' as const, installmentId: plan.installments[i].id };
   });
-  if (!changed) return plan;
+  if (!changed) return normalizeMonths(plan);
   let p: Plan = { ...plan, payments };
   p = { ...p, installments: p.installments.map((r) => (!r.closed && !r.cancelled && !r.skipped && paidFor(p, r.id) >= r.planned && r.planned > 0 ? { ...r, closed: true } : r)) };
-  return recalc(p, firstOpenIndex(p), { unit });
+  return normalizeMonths(recalc(p, firstOpenIndex(p), { unit }));
 }
 
 export function deletePayment(plan: Plan, paymentId: string, unit = 1): Result<Plan> {
@@ -500,29 +525,25 @@ export function unskipInstallment(plan: Plan, id: string, unit = 1): Result<Plan
   const i = findIndex(plan, id);
   if (i < 0) return { ok: false, error: 'القسط غير موجود.' };
   const rows = plan.installments.map((r) => ({ ...r }));
-  rows[i] = { ...rows[i], skipped: false, cancelled: true, planned: 0 };
+  rows[i] = { ...rows[i], skipped: false, cancelled: false, planned: 0 };
   let p: Plan = { ...plan, installments: rows };
-  p = recalc(p, i, { unit });
+  // the month gets its share again: spread the balance over this and later months
+  p = recalc(p, i, { unit, strategy: plan.strategy === 'last' ? 'equal' : plan.strategy });
   return { ok: true, value: touch(p), message: 'تمت إعادة القسط وإعادة الحساب.' };
-}
-
-/** Postpone: move this and every later open installment one month forward. */
-export function postponeInstallment(plan: Plan, id: string): Result<Plan> {
-  const i = findIndex(plan, id);
-  if (i < 0) return { ok: false, error: 'القسط غير موجود.' };
-  if (plan.installments[i].closed) return { ok: false, error: 'لا يمكن تأجيل قسط مدفوع.' };
-  const rows = plan.installments.map((r, k) =>
-    k >= i && !r.closed ? { ...r, dueDate: addMonths(r.dueDate, 1, plan.anchorDay) } : { ...r });
-  return { ok: true, value: touch({ ...plan, installments: rows }), message: 'تم تأجيل القسط والأقساط التي تليه شهراً واحداً.' };
 }
 
 export function changeInstallmentDate(plan: Plan, id: string, date: ISODate): Result<Plan> {
   const i = findIndex(plan, id);
   if (i < 0) return { ok: false, error: 'القسط غير موجود.' };
   if (!isValidISO(date)) return { ok: false, error: 'التاريخ غير صحيح.' };
+  const cur = plan.installments[i].dueDate;
+  if (!sameMonth(cur, date)) {
+    const { m, y } = parseISO(cur);
+    return { ok: false, error: `كل قسط يبقى في شهره: اختر يوماً من ${monthName(m)} ${y}. لترك الشهر بدون دفع استخدم «تخطي القسط».` };
+  }
   const rows = plan.installments.map((r) => ({ ...r }));
   rows[i].dueDate = date;
-  return { ok: true, value: touch({ ...plan, installments: rows }), message: 'تم تغيير تاريخ القسط.' };
+  return { ok: true, value: touch({ ...plan, installments: rows }), message: 'تم تغيير يوم الاستحقاق.' };
 }
 
 export function setInstallmentNote(plan: Plan, id: string, note: string): Plan {
@@ -819,6 +840,13 @@ export function checkInvariants(plan: Plan): string[] {
   if (dueSum !== out) errs.push(`open dues ${dueSum} ≠ outstanding ${out}`);
   const sched = buildSchedule(plan);
   if (sched.length && sched[sched.length - 1].balanceAfter !== 0) errs.push(`final projected balance ${sched[sched.length - 1].balanceAfter}`);
+  const act = plan.installments.filter((r) => !r.cancelled);
+  for (let k = 1; k < act.length; k++) {
+    const a = parseISO(act[k - 1].dueDate), b = parseISO(act[k].dueDate);
+    if ((b.y * 12 + b.m) - (a.y * 12 + a.m) !== 1) errs.push(`months not consecutive at ${act[k].dueDate}`);
+  }
+  if (plan.installments.findIndex((r) => r.cancelled) >= 0 && plan.installments.slice(plan.installments.findIndex((r) => r.cancelled)).some((r) => !r.cancelled))
+    errs.push('cancelled month in the middle');
   const ids = new Set(plan.payments.map((p) => p.id));
   if (ids.size !== plan.payments.length) errs.push('duplicate payment ids');
   return errs;

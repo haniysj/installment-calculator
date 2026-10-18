@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  changeInstallmentDate, deleteInstallment, dueOf, installmentNo, editInstallment, maxPlannedFor, paidFor, postponeInstallment,
+  changeInstallmentDate, dueOf, installmentNo, editInstallment, maxPlannedFor, paidFor,
   recordPayment, rowStatus, setInstallmentNote, skipInstallment, unskipInstallment, type FollowMode,
 } from '../lib/engine';
 import { formatDateLong, formatDateShort, todayISO } from '../lib/dates';
@@ -118,7 +118,7 @@ export function RowEditor({ plan, row, onClose, onRun, onEditPayment }: { plan: 
         {tab === 'more' && (
           <div className="grid gap-3">
             {open && (
-              <Field label="تاريخ الدفع المخطط" htmlFor="re-due">
+              <Field label="يوم الاستحقاق في هذا الشهر" htmlFor="re-due" hint="يمكن تغيير اليوم داخل نفس الشهر فقط. لترك الشهر بدون دفع استخدم «تخطي القسط».">
                 <div className="flex gap-2">
                   <div className="flex-1"><DateInput id="re-due" value={dueDate} onChange={setDueDate} /></div>
                   <Button disabled={dueDate === row.dueDate || !dueDate} onClick={() => done(changeInstallmentDate(plan, row.id, dueDate))}>حفظ</Button>
@@ -131,15 +131,11 @@ export function RowEditor({ plan, row, onClose, onRun, onEditPayment }: { plan: 
                 <Button disabled={note === row.note} onClick={async () => { if (await upsertPlan(setInstallmentNote(plan, row.id, note))) { toast('تم حفظ الملاحظة.'); onClose(); } }}>حفظ</Button>
               </div>
             </Field>
-            <div className="grid sm:grid-cols-3 gap-2">
-              {open && <Button icon={<Icon name="clock" size={17} />} onClick={() => done(postponeInstallment(plan, row.id))}>تأجيل شهراً</Button>}
+            <div className="grid sm:grid-cols-2 gap-2">
               {open && paid === 0 && !row.cancelled && <Button icon={<Icon name="skip" size={17} />} onClick={async () => {
                 if (await confirm({ title: 'تخطي هذا القسط؟', body: 'قيمة القسط تُضاف إلى الأقساط اللاحقة حسب طريقة الخطة.', confirmText: 'تخطي' })) done(skipInstallment(plan, row.id, unit));
               }}>تخطي القسط</Button>}
               {row.skipped && <Button icon={<Icon name="refresh" size={17} />} onClick={() => done(unskipInstallment(plan, row.id, unit))}>إلغاء التخطي</Button>}
-              {open && paid === 0 && <Button variant="danger" icon={<Icon name="trash" size={17} />} onClick={async () => {
-                if (await confirm({ title: 'حذف هذا القسط؟', body: 'يُحذف القسط غير المدفوع وتُعاد توزيع قيمته.', confirmText: 'حذف', danger: true })) done(deleteInstallment(plan, row.id, unit));
-              }}>حذف القسط</Button>}
             </div>
             {rowPays.length > 0 && (
               <div className="grid gap-1.5">

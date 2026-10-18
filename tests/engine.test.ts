@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   addInstallment, buildSchedule, changeFixedAmount, changePrincipal, checkInvariants, createPlan, deleteInstallment,
-  deletePayment, editInstallment, equalSplit, fixedSplit, outstanding, paidFor, postponeInstallment, recordPayment,
+  deletePayment, editInstallment, equalSplit, fixedSplit, outstanding, paidFor, recordPayment, unskipInstallment, changeInstallmentDate, normalizeMonths,
   resetPlan, restoreDefault, skipInstallment, summarize, editPayment, changeFirstDate, markPastInstallmentsPaid, attachMonthPayments,
 } from '../src/lib/engine';
 import { addMonths, monthsInclusive } from '../src/lib/dates';
@@ -251,15 +251,24 @@ describe('early settlement', () => {
 });
 
 describe('schedule operations', () => {
-  it('skip redistributes, postpone shifts dates, delete removes', () => {
+  it('skip keeps the month in place and redistributes; unskip restores it', () => {
     let p = make({ months: 4 }); // 250 × 4
     p = ok(skipInstallment(p, p.installments[1].id));
     expect(p.installments[1].skipped).toBe(true);
     expect(amounts(p)).toEqual([250, 0, 375, 375]);
+    expect(p.installments.map((r) => r.dueDate)).toEqual(['2026-11-01', '2026-12-01', '2027-01-01', '2027-02-01']);
     valid(p);
-    p = ok(postponeInstallment(p, p.installments[2].id));
-    expect(p.installments[2].dueDate).toBe('2027-02-01');
-    expect(p.installments[3].dueDate).toBe('2027-03-01');
+    p = ok(unskipInstallment(p, p.installments[1].id));
+    expect(amounts(p)).toEqual([250, 250, 250, 250]);
+    valid(p);
+    // setting a month to 0 skips it instead of removing the month
+    p = ok(editInstallment(p, p.installments[2].id, 0));
+    expect(p.installments[2].skipped).toBe(true);
+    expect(p.installments[2].dueDate).toBe('2027-01-01');
+    valid(p);
+    // the due day can move inside its month only
+    expect(changeInstallmentDate(p, p.installments[3].id, '2027-03-05').ok).toBe(false);
+    expect(ok(changeInstallmentDate(p, p.installments[3].id, '2027-02-20')).installments[3].dueDate).toBe('2027-02-20');
     let q = make({ months: 4 });
     q = ok(deleteInstallment(q, q.installments[3].id));
     expect(amounts(q)).toEqual([333.333, 333.333, 333.334]);
@@ -312,7 +321,7 @@ describe('schedule operations', () => {
       if (action === 0) r = recordPayment(p, { date: row.dueDate, amount: Math.max(1, Math.min(out, Math.floor(rnd() * row.planned * 1.5))), kind: 'installment', installmentId: row.id, closeRow: rnd() > 0.5 });
       else if (action === 1) r = recordPayment(p, { date: row.dueDate, amount: Math.max(1, Math.floor(rnd() * out * 0.2)), kind: 'extra', extraStrategy: rnd() > 0.5 ? 'shorten' : 'reduce' });
       else if (action === 2) r = editInstallment(p, row.id, Math.floor(rnd() * row.planned * 2), rnd() > 0.5 ? 'equal' : 'keep');
-      else r = postponeInstallment(p, row.id);
+      else r = paidFor(p, row.id) === 0 ? skipInstallment(p, row.id) : { ok: false as const, error: '' };
       if (r.ok) p = r.value;
       valid(p);
       expect(p.principal).toBe(p.payments.reduce((a, x) => a + x.amount, 0) + outstanding(p));
@@ -453,6 +462,26 @@ describe('editing a payment that belongs to a paid month', () => {
     expect(e.overpaid).toBe(R(250));
     expect(e.paidDate).toBe('2026-11-29');
     expect(summarize(p, TODAY).outstanding).toBe(R(600));
+    valid(p);
+  });
+});
+
+describe('one installment per month', () => {
+  it('repairs a plan with a duplicated month and a missing month (old postpone data)', () => {
+    let p = make({ mode: 'fixed', fixedAmount: R(100), firstDate: '2026-03-25' });
+    // simulate the old postpone bug: row 2 (May) and later open rows moved +1, a paid row stayed
+    p = ok(recordPayment(p, { date: '2026-07-20', amount: R(100), kind: 'installment', installmentId: p.installments[4].id }));
+    const broken = { ...p, installments: p.installments.map((r, k) => (k >= 2 && k !== 4 ? { ...r, dueDate: addMonths(r.dueDate, 1, 25) } : r)) };
+    const months = (q: typeof p) => q.installments.filter((r) => !r.cancelled).map((r) => r.dueDate.slice(0, 7));
+    expect(new Set(months(broken)).size).toBeLessThan(months(broken).length); // duplicate month
+    const fixed = normalizeMonths(broken);
+    expect(months(fixed)).toEqual(['2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10', '2026-11', '2026-12']);
+    valid(fixed);
+    expect(normalizeMonths(fixed)).toBe(fixed);
+  });
+  it('small balances never leave empty months in the middle', () => {
+    let p = ok(createPlan({ name: 'x', principal: R(10), firstDate: '2026-11-01', mode: 'flexible', method: 'months', months: 3 }, 1000));
+    p = ok(recordPayment(p, { date: '2026-11-01', amount: R(9), kind: 'installment', installmentId: p.installments[0].id, closeRow: true }, 1000));
     valid(p);
   });
 });
