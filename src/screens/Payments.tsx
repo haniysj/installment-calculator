@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { deletePayment, dueOf, installmentNumbers, outstanding, recordPayment, regularAmount, summarize } from '../lib/engine';
 import { formatDateShort, todayISO } from '../lib/dates';
+import { formatAmount } from '../lib/money';
 import type { PaymentKind } from '../lib/types';
 import { useApp } from '../store';
 import { go } from '../router';
@@ -9,7 +10,7 @@ import { Icon } from '../components/Icon';
 import { Money } from '../components/Money';
 
 export function Payments({ id, installmentId }: { id: string; installmentId?: string }) {
-  const { getPlan, apply, unit, confirm } = useApp();
+  const { getPlan, apply, unit, confirm, settings } = useApp();
   const plan = getPlan(id);
   const openRows = useMemo(() => plan?.installments.map((r, i) => ({ r, i })).filter(({ r }) => !r.closed && !r.skipped && !r.cancelled) ?? [], [plan]);
   const [kind, setKind] = useState<PaymentKind>('installment');
@@ -51,7 +52,7 @@ export function Payments({ id, installmentId }: { id: string; installmentId?: st
     <div className="grid lg:grid-cols-[1fr_1fr] gap-4 items-start">
       <Card className="p-4 sm:p-5">
         <CardTitle icon="wallet" actions={<Button size="sm" onClick={() => go(`/plan/${plan.id}`)}>الجدول<Icon name="chevron" size={16} /></Button>}>تسجيل دفعة — {plan.name}</CardTitle>
-        <div className="flex items-center gap-3 mb-1"><div className="flex-1"><ProgressBar value={s.progress} /></div><span className="num font-bold">{s.progress.toFixed(1)}%</span></div>
+        <div className="flex items-center gap-3 mb-1"><div className="flex-1"><ProgressBar value={s.progress} /></div><span className="num font-bold">{Math.round(s.progress)}%</span></div>
         <p className="text-[13px] text-muted mb-4">الرصيد المتبقي: <Money value={out} className="font-extrabold text-ink" /></p>
         {out <= 0 ? <Notice tone="teal" icon="check">تم سداد هذه الخطة بالكامل.</Notice> : (
           <form className="grid gap-3.5" onSubmit={(e) => { e.preventDefault(); submit(); }}>
@@ -71,7 +72,7 @@ export function Payments({ id, installmentId }: { id: string; installmentId?: st
                     setAmount(r ? dueOf(plan, r) : null);
                   }}>
                     {openRows.map(({ r }) => (
-                      <option key={r.id} value={r.id}>القسط {nums.get(r.id)} — {formatDateShort(r.dueDate)} — مستحق {(dueOf(plan, r) / 1000).toFixed(3)} ر.ع.</option>
+                      <option key={r.id} value={r.id}>القسط {nums.get(r.id)} — {formatDateShort(r.dueDate)} — مستحق {formatAmount(dueOf(plan, r), settings.decimals)} ر.ع.</option>
                     ))}
                   </select>
                 </Field>

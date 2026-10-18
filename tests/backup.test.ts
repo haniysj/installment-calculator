@@ -22,7 +22,7 @@ describe('backup and restore', () => {
     expect(parsed.ok).toBe(true);
     if (parsed.ok) {
       expect(parsed.plans).toEqual(plans);
-      expect(parsed.settings?.decimals).toBe(3);
+      expect(parsed.settings?.decimals).toBe(0);
     }
   });
   it('rejects invalid files with a clear message', () => {

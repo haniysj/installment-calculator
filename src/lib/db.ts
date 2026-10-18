@@ -44,7 +44,10 @@ export async function loadSettings(): Promise<Settings> {
   const row = await db.settings.get('app');
   if (!row) return { ...DEFAULT_SETTINGS };
   const { key: _k, ...rest } = row;
-  return { ...DEFAULT_SETTINGS, ...rest };
+  const s = { ...DEFAULT_SETTINGS, ...rest };
+  // v2: amounts are shown without decimals by default
+  if ((rest.settingsVersion ?? 1) < 2) { s.decimals = 0; s.settingsVersion = 2; }
+  return s;
 }
 
 export async function saveSettings(s: Settings): Promise<void> {

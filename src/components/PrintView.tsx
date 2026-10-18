@@ -2,6 +2,7 @@ import { buildSchedule, summarize } from '../lib/engine';
 import { STATUS_LABEL, MODE_LABEL, scheduleToCSV } from '../lib/csv';
 import { formatDateLong, formatDateShort, todayISO } from '../lib/dates';
 import type { Plan } from '../lib/types';
+import type { Decimals } from '../lib/money';
 import { Money } from './Money';
 import { useApp } from '../store';
 
@@ -19,7 +20,7 @@ export function downloadFile(name: string, content: string, type: string) {
 
 export const safeName = (s: string) => s.replace(/[\\/:*?"<>|]+/g, '-').trim().slice(0, 50) || 'plan';
 
-export function exportCSV(plan: Plan, decimals: 2 | 3) {
+export function exportCSV(plan: Plan, decimals: Decimals) {
   downloadFile(`جدول-${safeName(plan.name)}-${todayISO()}.csv`, scheduleToCSV(plan, decimals), 'text/csv;charset=utf-8');
 }
 

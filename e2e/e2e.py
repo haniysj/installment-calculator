@@ -64,7 +64,7 @@ def run(width, height, tag, mobile):
         page.goto(BASE + '/#/')
         page.wait_for_timeout(1000)  # number ticker animation
         txt = page.inner_text('main')
-        assert '250.000' in txt and '750.000' in txt, txt[:500]
+        assert '250' in txt and '750' in txt and '.000' not in txt, txt[:500]
         shot(page, f'{tag}-05-dashboard')
 
         # CSV export
@@ -72,7 +72,7 @@ def run(width, height, tag, mobile):
             page.get_by_role('button', name='تصدير الجدول').click()
         path = d.value.path()
         csv = open(path, encoding='utf-8-sig').read()
-        assert 'سيارة العائلة' in csv and '100.000' in csv
+        assert 'سيارة العائلة' in csv and ',100,' in csv
 
         # open the schedule and an installment editor
         page.goto(plan_url)

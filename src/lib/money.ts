@@ -30,9 +30,16 @@ export function parseRial(input: string | number): number | null {
 }
 
 /** Format baisa as a plain number string (no currency), e.g. 150000 → "150.000". */
-export function formatAmount(baisa: number, decimals: 2 | 3 = 3, grouping = true): string {
+export type Decimals = 0 | 2 | 3;
+
+export function formatAmount(baisa: number, decimals: Decimals = 3, grouping = true): string {
   const neg = baisa < 0;
   let b = Math.abs(Math.round(baisa));
+  if (decimals === 0) {
+    // whole rials only (rounded half up)
+    const w = Math.round(b / BAISA_PER_RIAL);
+    return `${neg && w ? '-' : ''}${grouping ? w.toLocaleString('en-US') : String(w)}`;
+  }
   if (decimals === 2) {
     // display rounding to 10 baisa (half up)
     b = Math.round(b / 10) * 10;
@@ -50,9 +57,9 @@ export function toInputValue(baisa: number | undefined | null): string {
   return s.replace(/\.?0+$/, '');
 }
 
-/** Rounding unit in baisa for computed installments (decimals 3 → 1 baisa, 2 → 10 baisa). */
-export function roundingUnit(decimals: 2 | 3): number {
-  return decimals === 2 ? 10 : 1;
+/** Rounding unit in baisa for computed installments (0 → whole rial, 2 → 10 baisa, 3 → 1 baisa). */
+export function roundingUnit(decimals: Decimals): number {
+  return decimals === 0 ? 1000 : decimals === 2 ? 10 : 1;
 }
 
 export const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);

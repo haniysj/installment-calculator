@@ -1,6 +1,6 @@
 import { buildSchedule, summarize, type ScheduleEntry } from './engine';
 import { formatDateShort, type ISODate } from './dates';
-import { formatAmount } from './money';
+import { formatAmount, type Decimals } from './money';
 import type { Plan } from './types';
 
 export const STATUS_LABEL: Record<ScheduleEntry['status'], string> = {
@@ -24,7 +24,7 @@ const cell = (v: string | number) => {
 };
 
 /** CSV with a details block, then the full schedule. UTF-8 BOM so Excel shows Arabic correctly. */
-export function scheduleToCSV(plan: Plan, decimals: 2 | 3 = 3, today?: ISODate): string {
+export function scheduleToCSV(plan: Plan, decimals: Decimals = 3, today?: ISODate): string {
   const s = summarize(plan, today);
   const amt = (b: number | null) => (b == null ? '' : formatAmount(b, decimals, false));
   const lines: (string | number)[][] = [

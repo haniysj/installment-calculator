@@ -77,7 +77,7 @@ export function parseBackup(text: string): ParsedBackup {
     const s = data.settings;
     settings = {};
     if (['system', 'light', 'dark'].includes(s.theme)) settings.theme = s.theme;
-    if (s.decimals === 2 || s.decimals === 3) settings.decimals = s.decimals;
+    if (s.decimals === 0 || s.decimals === 2 || s.decimals === 3) settings.decimals = s.decimals;
     if (['symbol', 'text'].includes(s.currencyDisplay)) settings.currencyDisplay = s.currencyDisplay;
     if (isStr(s.appTitle) && s.appTitle.trim()) settings.appTitle = s.appTitle.slice(0, 60);
   }

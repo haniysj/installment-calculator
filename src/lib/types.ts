@@ -76,7 +76,9 @@ export interface Plan {
 
 export interface Settings {
   theme: 'system' | 'light' | 'dark';
-  decimals: 2 | 3;
+  /** 0 = whole rials (no decimals) */
+  decimals: 0 | 2 | 3;
+  settingsVersion?: number;
   currencyDisplay: 'symbol' | 'text';
   appTitle: string;
   activePlanId: string | null;
@@ -84,7 +86,8 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
-  decimals: 3,
+  decimals: 0,
+  settingsVersion: 2,
   currencyDisplay: 'symbol',
   appTitle: 'حاسبة التقسيط الذكية',
   activePlanId: null,

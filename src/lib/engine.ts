@@ -15,7 +15,7 @@ export function uid(prefix = 'id'): string {
 }
 
 const nowStamp = () => new Date().toISOString();
-const fmt = (b: number) => `${formatAmount(b)} ر.ع.`;
+const fmt = (b: number) => `${formatAmount(b, b % 1000 === 0 ? 0 : 3)} ر.ع.`;
 
 function newRow(dueDate: ISODate, planned: number): Installment {
   return { id: uid('ins'), dueDate, planned, closed: false, locked: false, skipped: false, cancelled: false, note: '' };

@@ -341,3 +341,16 @@ describe('schedule view follows the plan', () => {
     expect(s.map((e) => e.period)).toEqual(['past', 'past', 'current', 'future', 'future']);
   });
 });
+
+describe('whole rials (no decimals)', () => {
+  it('formats without decimals and splits in whole rials', () => {
+    expect(formatAmount(1250500, 0)).toBe('1,251');
+    expect(formatAmount(150000, 0)).toBe('150');
+    const p = ok(createPlan({ name: 'x', principal: R(1000), firstDate: '2026-11-01', mode: 'flexible', method: 'months', months: 3 }, 1000));
+    expect(p.installments.map((r) => r.planned / 1000)).toEqual([333, 333, 334]);
+    const q = ok(editInstallment(p, p.installments[0].id, R(400), 'equal', 1000));
+    expect(q.installments.map((r) => r.planned / 1000)).toEqual([400, 300, 300]);
+    const z = ok(recordPayment(p, { date: '2026-11-01', amount: R(100), kind: 'extra', extraStrategy: 'reduce' }, 1000));
+    expect(z.installments.map((r) => r.planned / 1000)).toEqual([300, 300, 300]);
+  });
+});

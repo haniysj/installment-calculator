@@ -43,8 +43,8 @@ export function SettingsScreen() {
             ]} />
           </Field>
           <Field label="المنازل العشرية" hint={`الريال العُماني = 1000 بيسة. الحساب الداخلي دائماً بالبيسة. مثال: ${formatAmount(1250505, settings.decimals)}`}>
-            <Segmented ariaLabel="المنازل العشرية" value={String(settings.decimals) as '2' | '3'} onChange={(v) => updateSettings({ decimals: Number(v) as 2 | 3 })} options={[
-              { value: '3', label: '3 (بالبيسة)' }, { value: '2', label: '2 منزلتان' },
+            <Segmented ariaLabel="المنازل العشرية" value={String(settings.decimals) as '0' | '2' | '3'} onChange={(v) => updateSettings({ decimals: Number(v) as 0 | 2 | 3 })} options={[
+              { value: '0', label: 'بدون كسور' }, { value: '2', label: 'منزلتان' }, { value: '3', label: '3 (بيسة)' },
             ]} />
           </Field>
           <Field label="عنوان التطبيق" htmlFor="title">

@@ -108,7 +108,7 @@ export function MoneyInput({ value, onChange, id, placeholder, invalid, autoFocu
   return (
     <div className="relative">
       <input id={id} inputMode="decimal" dir="ltr" autoComplete="off" autoFocus={autoFocus}
-        className="field num text-left pl-14 font-bold text-[16px]" placeholder={placeholder ?? '0.000'}
+        className="field num text-left pl-14 font-bold text-[16px]" placeholder={placeholder ?? '0'}
         aria-invalid={invalid || undefined} value={raw}
         onKeyDown={(e) => { if (e.key === 'Enter') onEnter?.(); }}
         onChange={(e) => { setRaw(e.target.value); const v = parseRial(e.target.value); last.current = v; onChange(v, e.target.value); }} />
@@ -228,7 +228,7 @@ export function ProgressRing({ value, size = 104, stroke = 10, light = false }: 
           style={{ transition: 'stroke-dashoffset .7s cubic-bezier(.2,.8,.2,1)' }} />
       </svg>
       <div className="absolute inset-0 grid place-items-center text-center leading-none">
-        <div><div className="num font-extrabold text-[20px]">{v.toFixed(v >= 10 || v === 0 ? 0 : 1)}%</div><div className="text-[10.5px] font-bold opacity-80 mt-1">مسدَّد</div></div>
+        <div><div className="num font-extrabold text-[20px]">{Math.round(v)}%</div><div className="text-[10.5px] font-bold opacity-80 mt-1">مسدَّد</div></div>
       </div>
     </div>
   );
