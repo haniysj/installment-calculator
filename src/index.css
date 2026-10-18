@@ -1,0 +1,146 @@
+@import 'tailwindcss';
+@import '@fontsource/cairo/arabic-400.css';
+@import '@fontsource/cairo/arabic-600.css';
+@import '@fontsource/cairo/arabic-700.css';
+@import '@fontsource/cairo/arabic-800.css';
+@import '@fontsource/cairo/latin-400.css';
+@import '@fontsource/cairo/latin-600.css';
+@import '@fontsource/cairo/latin-700.css';
+@import '@fontsource/cairo/latin-800.css';
+
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+:root {
+  --ink: #102a43;
+  --ink-2: #334e68;
+  --muted: #627d98;
+  --paper: #eef2f6;
+  --card: #ffffff;
+  --card-2: #f7f9fb;
+  --line: #d9e2ec;
+  --btn: #102a43;
+  --btn-fg: #ffffff;
+  --teal: #1f7a6d;
+  --teal-bg: #d5efea;
+  --rose: #c2453a;
+  --rose-bg: #f8dedb;
+  --saffron: #b37216;
+  --saffron-strong: #e09a2d;
+  --saffron-bg: #fbebd0;
+  --violet: #6d3bb0;
+  --violet-bg: #ebdffa;
+  --blue: #1f5fa8;
+  --blue-bg: #dceafa;
+  --cream: #fbf7ef;
+  --excel: #1d7044;
+  --pdf: #d12a19;
+  --word: #2b579a;
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  --ink: #e6eef6;
+  --ink-2: #c3d2e0;
+  --muted: #8fa6bc;
+  --paper: #0b1724;
+  --card: #12233a;
+  --card-2: #172b45;
+  --line: #24405e;
+  --btn: #e6eef6;
+  --btn-fg: #0b1724;
+  --teal: #5cc7b5;
+  --teal-bg: #123d39;
+  --rose: #f08a80;
+  --rose-bg: #4a1f1c;
+  --saffron: #f1b85a;
+  --saffron-strong: #e09a2d;
+  --saffron-bg: #43321a;
+  --violet: #c4a6f0;
+  --violet-bg: #33254d;
+  --blue: #8dbdf2;
+  --blue-bg: #1a3352;
+  --cream: #1d3150;
+  --excel: #58c08a;
+  --pdf: #ff7a6b;
+  --word: #8db3ef;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --font-sans: 'Cairo', system-ui, sans-serif;
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-paper: var(--paper);
+  --color-card: var(--card);
+  --color-card-2: var(--card-2);
+  --color-line: var(--line);
+  --color-btn: var(--btn);
+  --color-btn-fg: var(--btn-fg);
+  --color-teal: var(--teal);
+  --color-teal-bg: var(--teal-bg);
+  --color-rose: var(--rose);
+  --color-rose-bg: var(--rose-bg);
+  --color-saffron: var(--saffron);
+  --color-saffron-strong: var(--saffron-strong);
+  --color-saffron-bg: var(--saffron-bg);
+  --color-violet: var(--violet);
+  --color-violet-bg: var(--violet-bg);
+  --color-blue: var(--blue);
+  --color-blue-bg: var(--blue-bg);
+  --color-cream: var(--cream);
+  --color-excel: var(--excel);
+  --color-pdf: var(--pdf);
+  --color-word: var(--word);
+}
+
+@layer base {
+html, body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'Cairo', system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+body { margin: 0; min-height: 100dvh; }
+button, input, select, textarea { font: inherit; color: inherit; }
+.num { font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; white-space: nowrap; }
+.nowrap { white-space: nowrap; }
+input[type='date'] { direction: ltr; text-align: right; }
+
+:focus-visible { outline: 2px solid var(--saffron-strong); outline-offset: 2px; border-radius: 8px; }
+
+}
+
+@layer components {
+.field {
+  width: 100%;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  min-height: 44px;
+}
+.field:focus { outline: none; border-color: var(--ink-2); box-shadow: 0 0 0 3px color-mix(in srgb, var(--saffron-strong) 30%, transparent); }
+.field[aria-invalid='true'] { border-color: var(--rose); }
+
+}
+
+.print-only { display: none; }
+
+@media print {
+  @page { size: A4; margin: 12mm; }
+  :root, [data-theme='dark'] {
+    --ink: #102a43; --muted: #627d98; --paper: #fff; --card: #fff; --line: #c9d4df;
+    --teal: #1f7a6d; --rose: #c2453a; --saffron: #9a5f0f; --violet: #6d3bb0; --blue: #1f5fa8;
+  }
+  body { background: #fff !important; }
+  .no-print { display: none !important; }
+  .print-only { display: block !important; }
+  .print-table th, .print-table td { border: 1px solid #c9d4df; padding: 4px 6px; font-size: 11px; }
+  .print-table { border-collapse: collapse; width: 100%; }
+  .print-table tr { break-inside: avoid; }
+}
+
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.toast-in { animation: toast-in 0.18s ease-out; }
+@media (prefers-reduced-motion: reduce) { .toast-in { animation: none; } }
