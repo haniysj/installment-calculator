@@ -36,19 +36,20 @@ export function scheduleToCSV(plan: Plan, decimals: Decimals = 3, today?: ISODat
     ['تاريخ أول قسط', formatDateShort(plan.firstDate)],
     ['تاريخ السداد المتوقع', s.expectedEnd ? formatDateShort(s.expectedEnd) : ''],
     [],
-    ['الرقم', 'تاريخ الدفع', 'القسط المخطط (ر.ع.)', 'المدفوع فعلياً (ر.ع.)', 'الرصيد المتبقي (ر.ع.)', 'الحالة', 'ملاحظات'],
+    ['الرقم', 'تاريخ الاستحقاق', 'تاريخ الدفع الفعلي', 'القسط المخطط (ر.ع.)', 'المدفوع فعلياً (ر.ع.)', 'الرصيد المتبقي (ر.ع.)', 'الحالة', 'ملاحظات'],
   ];
   for (const e of buildSchedule(plan, today)) {
     lines.push([
       e.no ?? '—',
-      formatDateShort(e.date),
+      e.type === 'installment' ? formatDateShort(e.date) : '',
+      e.paidDate ? formatDateShort(e.paidDate) : '',
       amt(e.planned),
       e.actual ? amt(e.actual) : '',
       amt(e.balanceAfter),
-      STATUS_LABEL[e.status] + (e.isFinal && e.type === 'installment' ? ' - القسط الأخير' : ''),
+      STATUS_LABEL[e.status] + (e.overpaid > 0 ? ` - دفع زائد ${amt(e.overpaid)}` : '') + (e.isFinal && e.type === 'installment' ? ' - القسط الأخير' : ''),
       e.note,
     ]);
   }
-  lines.push(['الإجمالي', '', amt(s.totalPlanned), amt(s.totalPaid), amt(s.outstanding), '', '']);
+  lines.push(['الإجمالي', '', '', amt(s.totalPlanned), amt(s.totalPaid), amt(s.outstanding), '', '']);
   return '﻿' + lines.map((l) => l.map(cell).join(',')).join('\r\n');
 }

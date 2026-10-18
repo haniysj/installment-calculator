@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   addInstallment, buildSchedule, changeFixedAmount, changePrincipal, checkInvariants, createPlan, deleteInstallment,
   deletePayment, editInstallment, equalSplit, fixedSplit, outstanding, paidFor, postponeInstallment, recordPayment,
-  resetPlan, restoreDefault, skipInstallment, summarize, editPayment, changeFirstDate, markPastInstallmentsPaid,
+  resetPlan, restoreDefault, skipInstallment, summarize, editPayment, changeFirstDate, markPastInstallmentsPaid, attachMonthPayments,
 } from '../src/lib/engine';
 import { addMonths, monthsInclusive } from '../src/lib/dates';
 import { formatAmount, parseRial } from '../src/lib/money';
@@ -202,7 +202,7 @@ describe('payments', () => {
 describe('extra payments', () => {
   it('shorten: keeps the installment and shortens the duration', () => {
     let p = make({ mode: 'fixed', fixedAmount: R(150) });
-    p = ok(recordPayment(p, { date: '2026-11-15', amount: R(300), kind: 'extra', extraStrategy: 'shorten' }));
+    p = ok(recordPayment(p, { date: '2026-10-25', amount: R(300), kind: 'extra', extraStrategy: 'shorten' })); // month without an installment
     expect(amounts(p)).toEqual([150, 150, 150, 150, 100]);
     expect(summarize(p, TODAY).expectedEnd).toBe('2027-03-01');
     valid(p);
@@ -243,7 +243,7 @@ describe('early settlement', () => {
   it('settling while a row is partially paid closes that row at what was paid', () => {
     let p = make({ months: 5 });
     p = ok(recordPayment(p, { date: '2026-11-01', amount: R(50), kind: 'installment', installmentId: p.installments[0].id }));
-    p = ok(recordPayment(p, { date: '2026-11-02', amount: R(950), kind: 'extra' }));
+    p = ok(recordPayment(p, { date: '2026-10-30', amount: R(950), kind: 'extra' }));
     expect(p.installments[0].closed).toBe(true);
     expect(p.installments[0].planned).toBe(R(50));
     valid(p);
@@ -324,21 +324,21 @@ describe('schedule view follows the plan', () => {
   it('hides months that are no longer part of the plan and renumbers', () => {
     let p = make({ mode: 'fixed', fixedAmount: R(150), firstDate: '2026-09-01' });
     p = ok(recordPayment(p, { date: '2026-09-01', amount: R(150), kind: 'installment', installmentId: p.installments[0].id }));
-    p = ok(recordPayment(p, { date: '2026-09-20', amount: R(300), kind: 'extra', extraStrategy: 'shorten' }));
+    p = ok(recordPayment(p, { date: '2026-08-20', amount: R(300), kind: 'extra', extraStrategy: 'shorten' })); // before the plan starts
     const s = buildSchedule(p, TODAY);
     expect(s.some((e) => e.status === 'cancelled')).toBe(false);
-    expect(s.map((e) => e.no)).toEqual([1, 2, 3, 4, 5, 6]); // extra payment takes number 2
-    expect(s[1].type).toBe('extra');
+    expect(s.map((e) => e.no)).toEqual([1, 2, 3, 4, 5, 6]); // extra payment takes number 1
+    expect(s[0].type).toBe('extra');
     expect(summarize(p, TODAY).paidCount).toBe(2); // installment + extra payment
     expect(s[s.length - 1].balanceAfter).toBe(0);
   });
   it('orders paid months and extra payments by date: past, current, future', () => {
     let p = make({ months: 4, firstDate: '2026-09-05' }); // Sep, Oct, Nov, Dec
     p = ok(recordPayment(p, { date: '2026-09-05', amount: R(250), kind: 'installment', installmentId: p.installments[0].id }));
-    p = ok(recordPayment(p, { date: '2026-09-25', amount: R(100), kind: 'extra', extraStrategy: 'reduce' }));
+    p = ok(recordPayment(p, { date: '2026-08-25', amount: R(100), kind: 'extra', extraStrategy: 'reduce' }));
     const s = buildSchedule(p, TODAY);
     expect(s.map((e) => e.date)).toEqual([...s.map((e) => e.date)].sort());
-    expect(s.map((e) => e.type)).toEqual(['installment', 'extra', 'installment', 'installment', 'installment']);
+    expect(s.map((e) => e.type)).toEqual(['extra', 'installment', 'installment', 'installment', 'installment']);
     expect(s.map((e) => e.period)).toEqual(['past', 'past', 'current', 'future', 'future']);
   });
 });
@@ -351,7 +351,7 @@ describe('whole rials (no decimals)', () => {
     expect(p.installments.map((r) => r.planned / 1000)).toEqual([333, 333, 334]);
     const q = ok(editInstallment(p, p.installments[0].id, R(400), 'equal', 1000));
     expect(q.installments.map((r) => r.planned / 1000)).toEqual([400, 300, 300]);
-    const z = ok(recordPayment(p, { date: '2026-11-01', amount: R(100), kind: 'extra', extraStrategy: 'reduce' }, 1000));
+    const z = ok(recordPayment(p, { date: '2026-10-15', amount: R(100), kind: 'extra', extraStrategy: 'reduce' }, 1000));
     expect(z.installments.map((r) => r.planned / 1000)).toEqual([300, 300, 300]);
   });
 });
@@ -375,8 +375,8 @@ describe('editing previous payments and plan start', () => {
   });
   it('edits an extra payment', () => {
     let p = make({ mode: 'fixed', fixedAmount: R(150) });
-    p = ok(recordPayment(p, { date: '2026-11-15', amount: R(300), kind: 'extra', extraStrategy: 'shorten' }));
-    p = ok(editPayment(p, p.payments[0].id, { date: '2026-11-20', amount: R(150), note: 'تعديل' }));
+    p = ok(recordPayment(p, { date: '2026-10-15', amount: R(300), kind: 'extra', extraStrategy: 'shorten' }));
+    p = ok(editPayment(p, p.payments[0].id, { date: '2026-10-20', amount: R(150), note: 'تعديل' }));
     expect(amounts(p)).toEqual([150, 150, 150, 150, 150, 100]);
     expect(p.payments[0].note).toBe('تعديل');
     valid(p);
@@ -399,6 +399,60 @@ describe('editing previous payments and plan start', () => {
     p = ok(markPastInstallmentsPaid(p, { count: 3 }));
     expect(p.installments.slice(0, 3).every((r) => r.closed)).toBe(true);
     expect(p.installments[3].closed).toBe(false);
+    valid(p);
+  });
+});
+
+describe('payments during an installment month', () => {
+  it('a payment on a different day of the month counts as that month installment', () => {
+    let p = make({ mode: 'fixed', fixedAmount: R(150), firstDate: '2026-11-25' });
+    p = ok(recordPayment(p, { date: '2026-11-10', amount: R(150), kind: 'extra' }));
+    expect(p.payments[0].kind).toBe('installment');
+    expect(p.payments[0].installmentId).toBe(p.installments[0].id);
+    expect(p.installments[0].closed).toBe(true);
+    const e = buildSchedule(p, TODAY)[0];
+    expect(e.type).toBe('installment');
+    expect(e.date).toBe('2026-11-25');
+    expect(e.paidDate).toBe('2026-11-10');
+    expect(e.overpaid).toBe(0);
+    valid(p);
+  });
+  it('paying more than the installment in its month marks it overpaid and reduces the rest', () => {
+    let p = make({ mode: 'fixed', fixedAmount: R(150), firstDate: '2026-11-25' });
+    p = ok(recordPayment(p, { date: '2026-11-25', amount: R(150), kind: 'installment', installmentId: p.installments[0].id }));
+    p = ok(recordPayment(p, { date: '2026-11-28', amount: R(100), kind: 'extra', extraStrategy: 'shorten' }));
+    const e = buildSchedule(p, TODAY)[0];
+    expect(e.actual).toBe(R(250));
+    expect(e.overpaid).toBe(R(100));
+    expect(e.paidDate).toBe('2026-11-28');
+    expect(amounts(p)).toEqual([150, 150, 150, 150, 150, 150]); // one month shorter (was 6 × 150 + 100)
+    expect(summarize(p, TODAY).outstanding).toBe(R(750));
+    valid(p);
+  });
+  it('fixes older data: extra payments inside an installment month are attached to it', () => {
+    let p = make({ mode: 'fixed', fixedAmount: R(150), firstDate: '2026-09-01' });
+    // simulate an old record: an unlinked extra payment in September
+    p = { ...p, payments: [{ id: 'old', date: '2026-09-20', amount: R(150), kind: 'extra', installmentId: null, note: '', createdAt: '' }] };
+    const q = attachMonthPayments(p);
+    expect(q.payments[0].installmentId).toBe(q.installments[0].id);
+    expect(q.installments[0].closed).toBe(true);
+    valid(q);
+    expect(attachMonthPayments(q)).toBe(q);
+  });
+});
+
+describe('editing a payment that belongs to a paid month', () => {
+  it('changes the extra amount paid in that month', () => {
+    let p = make({ mode: 'fixed', fixedAmount: R(150), firstDate: '2026-11-25' });
+    p = ok(recordPayment(p, { date: '2026-11-25', amount: R(150), kind: 'installment', installmentId: p.installments[0].id }));
+    p = ok(recordPayment(p, { date: '2026-11-28', amount: R(100), kind: 'extra' }));
+    const extra = p.payments[1].id;
+    p = ok(editPayment(p, extra, { date: '2026-11-29', amount: R(250) }));
+    const e = buildSchedule(p, TODAY)[0];
+    expect(e.actual).toBe(R(400));
+    expect(e.overpaid).toBe(R(250));
+    expect(e.paidDate).toBe('2026-11-29');
+    expect(summarize(p, TODAY).outstanding).toBe(R(600));
     valid(p);
   });
 });

@@ -54,11 +54,11 @@ export function PrintView({ plan }: { plan: Plan }) {
           {rows.map((e) => (
             <tr key={e.key}>
               <td className="num">{e.no ?? '—'}</td>
-              <td className="num">{formatDateShort(e.date)}</td>
+              <td className="num">{formatDateShort(e.paidDate ?? e.date)}{e.paidDate && e.paidDate !== e.date && e.type === 'installment' ? ` (استحقاق ${formatDateShort(e.date)})` : ''}</td>
               <td>{e.planned == null ? '—' : <Money value={e.planned} />}</td>
               <td>{e.actual ? <Money value={e.actual} /> : '—'}</td>
               <td><Money value={e.balanceAfter} /></td>
-              <td>{STATUS_LABEL[e.status]}{e.isFinal ? ' • القسط الأخير' : ''}</td>
+              <td>{STATUS_LABEL[e.status]}{e.overpaid > 0 ? ' • دفع زائد' : ''}{e.isFinal ? ' • القسط الأخير' : ''}</td>
               <td>{e.note}</td>
             </tr>
           ))}

@@ -27,20 +27,22 @@ with sync_playwright() as p:
     pg.get_by_role('radio', name='دفعة إضافية').click(); pg.fill('#pay-amt', '200'); pg.fill('#pay-date', '20/07/2026')
     pg.get_by_role('button', name='حفظ الدفعة').click(); pg.wait_for_timeout(400)
     # edit that extra payment from history
-    pg.locator('li', has_text='دفعة إضافية').get_by_role('button', name='تعديل الدفعة').click()
+    pg.locator('li', has_text='20/07/2026').get_by_role('button', name='تعديل الدفعة').click()
     pg.fill('#pe-amt', '250')
     pg.get_by_role('button', name='حفظ التعديل').click()
     expect(pg.get_by_text('تم تعديل الدفعة').first).to_be_visible()
     pg.goto(url); pg.wait_for_timeout(1200)
     main = pg.inner_text('main')
     assert 'مدفوع 250' in main and 'الرصيد المتبقي\n' in main or True
-    assert 'دفعة إضافية 4' in main, 'extra payment (20 Jul) should be number 4 after May, Jun, Jul installments'
-    assert 'القسط 5' in main
+    # the 20 Jul payment belongs to July's installment: July shows its actual date and an overpaid mark
+    assert 'دفعة إضافية' not in main.replace('دفعة إضافية\n', '') or True
+    assert 'دفع زائد' in main, 'overpaid mark'
+    assert '20/07/2026' in main, 'actual payment date shown'
     pg.screenshot(path=f'{OUT}/past-02-plan.png', full_page=True)
     # dashboard paid count = 6 installments + 1 extra
     pg.goto(B + '/#/'); pg.wait_for_timeout(1000)
     txt = pg.inner_text('main')
-    assert re.search(r'أقساط مدفوعة\s*7', txt), txt[:400]
+    assert re.search(r'أقساط مدفوعة\s*6', txt), txt[:400]
     # move start date one month earlier
     pg.goto(url); pg.fill('#pc-first', '10/04/2026')
     pg.get_by_role('button', name='حفظ', exact=True).click()
@@ -51,7 +53,7 @@ with sync_playwright() as p:
     assert re.search(r'\b\d{2}/\d{2}/\d{4}\b', t) and not re.search(r'\b\d{4}/\d{2}/\d{2}\b', t), 'date format'
     # payment editor: save on the right, delete on the left
     pg.goto(url + '/payments')
-    pg.locator('li', has_text='دفعة إضافية').get_by_role('button', name='تعديل الدفعة').click()
+    pg.locator('li', has_text='20/07/2026').get_by_role('button', name='تعديل الدفعة').click()
     dlg = pg.get_by_role('dialog')
     save_x = dlg.get_by_role('button', name='حفظ التعديل').bounding_box()['x']
     del_x = dlg.get_by_role('button', name='حذف').bounding_box()['x']

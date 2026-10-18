@@ -80,7 +80,7 @@ export function Payments({ id, installmentId }: { id: string; installmentId?: st
                 </Field>
               )
             ) : (
-              <Field label={kind === 'down' ? 'بعد الدفعة الأولى' : 'بعد الدفعة الإضافية'}>
+              <Field label={kind === 'down' ? 'بعد الدفعة الأولى' : 'بعد الدفعة الإضافية'} hint={kind === 'extra' ? 'إذا كان تاريخ الدفعة في شهر فيه قسط، تُحتسب ضمن قسط ذلك الشهر ويظهر تاريخها الفعلي.' : undefined}>
                 <div className="grid gap-1.5">
                   <label className={`flex items-start gap-2.5 rounded-xl border px-3 py-2.5 cursor-pointer text-[14px] font-semibold ${extraStrategy === 'shorten' ? 'border-ink-2 bg-card-2' : 'border-line'}`}>
                     <input type="radio" name="es" className="size-4 mt-1 accent-[var(--ink)]" checked={extraStrategy === 'shorten'} onChange={() => setExtraStrategy('shorten')} />

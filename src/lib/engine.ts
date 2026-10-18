@@ -1,5 +1,5 @@
 // Pure calculation engine. No UI, no storage. Every function returns a NEW plan object.
-import { addMonths, isValidISO, monthsInclusive, parseISO, sameMonth, todayISO, type ISODate } from './dates';
+import { addMonths, isValidISO, monthName, monthsInclusive, parseISO, sameMonth, todayISO, type ISODate } from './dates';
 import { formatAmount, sum } from './money';
 import type { Installment, Payment, PaymentKind, Plan, PlanInput, Result, Strategy } from './types';
 
@@ -404,17 +404,62 @@ export function recordPayment(plan: Plan, input: PaymentInput, unit = 1): Result
     return { ok: true, value: touch(p), message: msg };
   }
 
-  // extra or down payment: not linked to an installment
-  let p: Plan = { ...plan, payments: [...plan.payments, pay] };
   const shorten = (input.extraStrategy ?? 'shorten') === 'shorten';
   const strategy: Strategy = shorten ? 'fixed' : 'equal';
   const fixedAmount = shorten ? regularAmount(plan) : plan.fixedAmount;
+
+  // a payment made during a month that has an installment counts as that month's installment
+  const mi = input.kind === 'extra' ? monthRowIndex(plan, input.date) : -1;
+  if (mi >= 0) {
+    const row = plan.installments[mi];
+    const paidAfter = paidFor(plan, row.id) + input.amount;
+    const rows = plan.installments.map((r) => ({ ...r }));
+    if (!rows[mi].closed && paidAfter >= rows[mi].planned) rows[mi].closed = true;
+    let p: Plan = { ...plan, installments: rows, payments: [...plan.payments, { ...pay, kind: 'installment', installmentId: row.id }] };
+    if (rows[mi].closed && paidAfter > rows[mi].planned) {
+      p = { ...p, strategy, fixedAmount };
+      p = recalc(p, mi + 1, { strategy, fixedAmount: fixedAmount ?? undefined, unit });
+    }
+    const { m, y } = parseISO(row.dueDate);
+    const over = paidAfter - row.planned;
+    const msg = `تم احتساب الدفعة ضمن قسط ${monthName(m)} ${y}` + (over > 0 ? `، والزيادة (${fmt(over)}) خُصمت من الأقساط القادمة.` : '.');
+    return { ok: true, value: touch(p), message: msg };
+  }
+
+  // extra or down payment: not linked to an installment
+  let p: Plan = { ...plan, payments: [...plan.payments, pay] };
   p = { ...p, strategy, fixedAmount };
   p = recalc(p, firstOpenIndex(p), { strategy, fixedAmount: fixedAmount ?? undefined, unit });
   const msg = shorten
     ? 'تم تسجيل الدفعة الإضافية. القسط الشهري ثابت والمدة أصبحت أقصر.'
     : 'تم تسجيل الدفعة الإضافية. تاريخ الانتهاء ثابت والأقساط القادمة أصبحت أقل.';
   return { ok: true, value: touch(p), message: msg };
+}
+
+/** Installment that belongs to the month of `date` (an open one first). -1 when that month has none. */
+export function monthRowIndex(plan: Plan, date: ISODate): number {
+  const ok = (r: Installment) => !r.cancelled && !r.skipped && sameMonth(r.dueDate, date);
+  const open = plan.installments.findIndex((r) => ok(r) && !r.closed);
+  return open >= 0 ? open : plan.installments.findIndex(ok);
+}
+
+/**
+ * Data fix for plans saved before payments were matched to months: extra payments made in a month
+ * that has an installment become part of that installment. Returns the same object when nothing changes.
+ */
+export function attachMonthPayments(plan: Plan, unit = 1): Plan {
+  let changed = false;
+  const payments = plan.payments.map((x) => {
+    if (x.kind !== 'extra') return x;
+    const i = monthRowIndex(plan, x.date);
+    if (i < 0) return x;
+    changed = true;
+    return { ...x, kind: 'installment' as const, installmentId: plan.installments[i].id };
+  });
+  if (!changed) return plan;
+  let p: Plan = { ...plan, payments };
+  p = { ...p, installments: p.installments.map((r) => (!r.closed && !r.cancelled && !r.skipped && paidFor(p, r.id) >= r.planned && r.planned > 0 ? { ...r, closed: true } : r)) };
+  return recalc(p, firstOpenIndex(p), { unit });
 }
 
 export function deletePayment(plan: Plan, paymentId: string, unit = 1): Result<Plan> {
@@ -543,15 +588,17 @@ export function editPayment(plan: Plan, paymentId: string, patch: PaymentPatch, 
   const note = patch.note?.trim() ?? pay.note;
 
   if (pay.installmentId) {
-    const row = plan.installments.find((r) => r.id === pay.installmentId);
-    const wasClosed = !!row?.closed;
-    const del = deletePayment(plan, paymentId, unit);
-    if (!del.ok) return del;
-    const rec = recordPayment(del.value, { date: patch.date, amount: patch.amount, kind: 'installment', installmentId: pay.installmentId, closeRow: wasClosed, note }, unit);
-    if (!rec.ok) return rec;
-    const fresh = rec.value.payments[rec.value.payments.length - 1];
-    const payments = rec.value.payments.map((x) => (x.id === fresh.id ? { ...x, id: pay.id, createdAt: pay.createdAt } : x));
-    return { ok: true, value: touch({ ...rec.value, payments }), message: 'تم تعديل الدفعة وإعادة حساب الأقساط.' };
+    const i = plan.installments.findIndex((r) => r.id === pay.installmentId);
+    if (i >= 0) {
+      let p: Plan = { ...plan, payments: plan.payments.map((x) => (x.id === paymentId ? { ...x, date: patch.date, amount: patch.amount, note } : x)) };
+      const rows = p.installments.map((r) => ({ ...r }));
+      const row = rows[i];
+      // a closed row stays closed (a shortfall is carried forward); an open row closes once fully paid
+      if (!row.closed && paidFor(p, row.id) >= row.planned) row.closed = true;
+      p = { ...p, installments: rows };
+      p = recalc(p, i + 1, { unit });
+      return { ok: true, value: touch(p), message: 'تم تعديل الدفعة وإعادة حساب الأقساط.' };
+    }
   }
   let p: Plan = { ...plan, payments: plan.payments.map((x) => (x.id === paymentId ? { ...x, date: patch.date, amount: patch.amount, note } : x)) };
   p = recalc(p, firstOpenIndex(p), { unit });
@@ -615,6 +662,10 @@ export interface ScheduleEntry {
   isFinal: boolean;
   isCurrentMonth: boolean;
   period: Period;
+  /** actual date of the (last) payment for this installment, null when unpaid */
+  paidDate: ISODate | null;
+  /** amount paid above the planned installment (0 when not overpaid) */
+  overpaid: number;
   overdue: boolean;
   note: string;
   index: number;
@@ -661,6 +712,12 @@ export function periodOf(date: ISODate, today: ISODate): Period {
   return a < b ? 'past' : a > b ? 'future' : 'current';
 }
 
+export function lastPaidDate(plan: Plan, installmentId: string): ISODate | null {
+  let d: ISODate | null = null;
+  for (const x of plan.payments) if (x.installmentId === installmentId && (!d || x.date > d)) d = x.date;
+  return d;
+}
+
 export function buildSchedule(plan: Plan, today: ISODate = todayISO()): ScheduleEntry[] {
   const fi = finalIndex(plan);
   type Ev = { order: number; date: ISODate; entry: Omit<ScheduleEntry, 'balanceAfter'>; deduct: number };
@@ -676,6 +733,7 @@ export function buildSchedule(plan: Plan, today: ISODate = todayISO()): Schedule
         key: r.id, type: 'installment', no: 0, id: r.id, date: r.dueDate,
         planned: r.planned, actual: pd, status: st, isFinal: i === fi,
         isCurrentMonth: sameMonth(r.dueDate, today), period: periodOf(r.dueDate, today),
+        paidDate: lastPaidDate(plan, r.id), overpaid: Math.max(0, pd - r.planned),
         overdue: !r.closed && !r.skipped && !r.cancelled && r.dueDate < today,
         note: r.note, index: i,
       },
@@ -687,7 +745,7 @@ export function buildSchedule(plan: Plan, today: ISODate = todayISO()): Schedule
       entry: {
         key: x.id, type: x.kind as 'extra' | 'down', no: 0, id: x.id, date: x.date, planned: null,
         actual: x.amount, status: x.kind as 'extra' | 'down', isFinal: false,
-        isCurrentMonth: sameMonth(x.date, today), period: periodOf(x.date, today), overdue: false, note: x.note, index: -1,
+        isCurrentMonth: sameMonth(x.date, today), period: periodOf(x.date, today), paidDate: x.date, overpaid: 0, overdue: false, note: x.note, index: -1,
       },
     });
   });

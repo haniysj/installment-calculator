@@ -34,6 +34,7 @@ const P: Record<string, string> = {
   note: 'M5 3h10l4 4v14H5zM15 3v4h4M8 12h8M8 16h5',
   lock: 'M6 11h12v10H6zM8 11V7a4 4 0 0 1 8 0v4',
   flag: 'M5 21V4M5 4h11l-2 4 2 4H5',
+  star: 'M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z',
   receipt: 'M5 3h14v18l-3-2-2 2-2-2-2 2-2-2-3 2zM9 8h6M9 12h6',
 };
 

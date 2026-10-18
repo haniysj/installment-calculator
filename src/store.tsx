@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { deletePlanFromDB, loadPlans, loadSettings, replaceAllPlans, requestPersistence, savePlan, saveSettings } from './lib/db';
 import { roundingUnit } from './lib/money';
+import { attachMonthPayments } from './lib/engine';
 import { DEFAULT_SETTINGS, type Plan, type Result, type Settings } from './lib/types';
 
 type ToastKind = 'success' | 'error' | 'info';
@@ -61,7 +62,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     (async () => {
       try {
-        const [ps, s] = await Promise.all([loadPlans(), loadSettings()]);
+        const [loadedPlans, s] = await Promise.all([loadPlans(), loadSettings()]);
+        // older plans: extra payments made inside an installment month become that month's installment
+        const ps = loadedPlans.map((p) => attachMonthPayments(p, roundingUnit(s.decimals)));
+        await Promise.all(ps.filter((p, i) => p !== loadedPlans[i]).map((p) => savePlan(p)));
         setPlans(ps);
         setSettings(s);
         requestPersistence();

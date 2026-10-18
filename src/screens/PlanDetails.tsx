@@ -12,7 +12,7 @@ import { go } from '../router';
 import { Button, Card, CardTitle, DateBadge, DateInput, EmptyState, Field, Modal, MoneyInput, Notice, Pill, ProgressRing, Segmented } from '../components/ui';
 import { FileIcon, Icon } from '../components/Icon';
 import { AnimatedMoney, Money } from '../components/Money';
-import { FinalPill, StatusPill } from '../components/Status';
+import { FinalPill, OverpaidPill, StatusPill } from '../components/Status';
 import { PrintView, exportCSV } from '../components/PrintView';
 import { PaymentEditor } from './PaymentEditor';
 import { RowEditor } from './RowEditor';
@@ -295,6 +295,7 @@ function Mini({ label, value, tone }: { label: string; value: React.ReactNode; t
 
 function rowTone(e: ScheduleEntry) {
   if (e.status === 'cancelled' || e.status === 'skipped') return 'opacity-60';
+  if (e.overpaid > 0) return 'bg-saffron-bg/60';
   if (e.isCurrentMonth && e.type === 'installment') return 'bg-brand-bg/60';
   if (e.status === 'overdue') return 'bg-rose-bg/40';
   if (e.type !== 'installment') return 'bg-blue-bg/40';
@@ -312,7 +313,12 @@ function DesktopRow({ plan, e, onRun, onOpen }: { plan: Plan; e: ScheduleEntry; 
       <td className="p-2">
         {editable ? (
           <DateInput compact ariaLabel={`تاريخ القسط ${e.no}`} value={e.date} onChange={(v) => { if (v && v !== e.date) onRun(changeInstallmentDate(plan, row!.id, v)); }} />
-        ) : <span className="num px-2">{formatDateShort(e.date)}</span>}
+        ) : (
+          <span className="inline-flex flex-col leading-tight px-2">
+            <span className="num font-bold">{formatDateShort(e.paidDate ?? e.date)}</span>
+            {e.type === 'installment' && e.paidDate && e.paidDate !== e.date && <span className="text-[11px] text-muted">الاستحقاق <span className="num">{formatDateShort(e.date)}</span></span>}
+          </span>
+        )}
         {e.isCurrentMonth && e.type === 'installment' && <span className="ms-1 text-[11px] font-bold text-brand">● الشهر الحالي</span>}
       </td>
       <td className="p-2 text-left">
@@ -321,7 +327,7 @@ function DesktopRow({ plan, e, onRun, onOpen }: { plan: Plan; e: ScheduleEntry; 
       </td>
       <td className="p-2.5 text-left font-bold text-teal">{e.actual ? <Money value={e.actual} /> : <span className="text-muted font-normal">—</span>}</td>
       <td className="p-2.5 text-left font-bold"><Money value={e.balanceAfter} /></td>
-      <td className="p-2.5"><span className="inline-flex flex-wrap gap-1"><StatusPill entry={e} />{e.isFinal && <FinalPill />}</span>
+      <td className="p-2.5"><span className="inline-flex flex-wrap gap-1"><StatusPill entry={e} />{e.overpaid > 0 && <OverpaidPill amount={e.overpaid} />}{e.isFinal && <FinalPill />}</span>
         {e.note && <div className="text-[11.5px] text-muted mt-0.5 truncate max-w-48" title={e.note}>{e.note}</div>}</td>
       <td className="p-2 text-left">
         {e.type === 'installment' ? (
@@ -366,14 +372,20 @@ function MobileRow({ e, onOpen }: { e: ScheduleEntry; onOpen: () => void }) {
   const tone = e.status === 'overdue' ? 'rose' : e.status === 'paid' || e.status === 'paid-short' ? 'teal' : e.isCurrentMonth ? 'saffron' : 'default';
   return (
     <li>
-      <button onClick={onOpen} className={`w-full text-right flex items-center gap-3 rounded-2xl border border-line p-2.5 bg-card ${rowTone(e)} ${e.isCurrentMonth && e.type === 'installment' ? 'glow-border' : ''}`}>
-        <DateBadge date={e.date} tone={tone as any} />
+      <button onClick={onOpen} className={`w-full text-right flex items-center gap-3 rounded-2xl border border-line p-2.5 bg-card ${rowTone(e)} ${e.overpaid > 0 ? '!border-saffron-strong border-2' : e.isCurrentMonth && e.type === 'installment' ? 'glow-border' : ''}`}>
+        <DateBadge date={e.paidDate ?? e.date} tone={(e.overpaid > 0 ? 'saffron' : tone) as any} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="font-extrabold">{e.type === 'installment' ? 'القسط' : e.type === 'down' ? 'دفعة أولى' : 'دفعة إضافية'} <span className="num">{e.no}</span></span>
             {e.isFinal && <FinalPill />}
           </div>
-          <div className="mt-1"><StatusPill entry={e} /></div>
+          <div className="mt-1 flex flex-wrap gap-1"><StatusPill entry={e} />{e.overpaid > 0 && <OverpaidPill amount={e.overpaid} />}</div>
+          {e.type === 'installment' && e.paidDate && (
+            <div className="text-[12px] text-muted mt-1 flex flex-wrap gap-x-3">
+              <span className="nowrap">دُفع <span className="num font-bold text-ink-2">{formatDateShort(e.paidDate)}</span></span>
+              {e.paidDate !== e.date && <span className="nowrap">الاستحقاق <span className="num">{formatDateShort(e.date)}</span></span>}
+            </div>
+          )}
           <div className="text-[12px] text-muted mt-1">الرصيد بعده: <Money value={e.balanceAfter} className="font-bold text-ink-2" /></div>
         </div>
         <div className="text-left shrink-0">
