@@ -1,19 +1,8 @@
-/** Original brand mark: a calendar card with progress bars and a teal check badge. Mirrors public/favicon.svg */
+/** Brand mark: a calculator with a stack of gold coins. Mirrors public/favicon.svg */
 export function AppMark({ size = 40 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true">
-      <rect x="2" y="2" width="60" height="60" rx="16" fill="#7033FF" />
-      <rect x="13" y="15" width="34" height="34" rx="6" fill="#fff" />
-      <rect x="13" y="15" width="34" height="9" rx="4" fill="#E09A2D" />
-      <rect x="13" y="20" width="34" height="4" fill="#E09A2D" />
-      <rect x="19" y="11" width="4" height="8" rx="2" fill="#fff" />
-      <rect x="37" y="11" width="4" height="8" rx="2" fill="#fff" />
-      <rect x="18" y="29" width="24" height="4" rx="2" fill="#E7E4F0" />
-      <rect x="18" y="29" width="17" height="4" rx="2" fill="#0B8A5F" />
-      <rect x="18" y="37" width="24" height="4" rx="2" fill="#E7E4F0" />
-      <rect x="18" y="37" width="9" height="4" rx="2" fill="#0B8A5F" />
-      <circle cx="47" cy="47" r="11" fill="#0B8A5F" stroke="#fff" strokeWidth="3" />
-      <path d="M42 47.2l3.4 3.3 6.4-6.6" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+      <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#8B5CF6"/><stop offset="1" stopColor="#4F2BD6"/></linearGradient></defs><rect x="2" y="2" width="60" height="60" rx="16" fill="url(#bg)"/><rect x="11" y="9" width="30.5" height="42" rx="6" fill="#fff"/><rect x="15" y="13" width="22.5" height="10.5" rx="2.5" fill="#241A47"/><rect x="25" y="16.5" width="10" height="3.5" rx="1.2" fill="#4ADE9A"/><rect x="16" y="28" width="5.5" height="5" rx="1.6" fill="#ECE8F6"/><rect x="23" y="28" width="5.5" height="5" rx="1.6" fill="#ECE8F6"/><rect x="30" y="28" width="5.5" height="5" rx="1.6" fill="#FDE7B0"/><rect x="16" y="35" width="5.5" height="5" rx="1.6" fill="#ECE8F6"/><rect x="23" y="35" width="5.5" height="5" rx="1.6" fill="#ECE8F6"/><rect x="30" y="35" width="5.5" height="5" rx="1.6" fill="#FDE7B0"/><rect x="16" y="42" width="5.5" height="5" rx="1.6" fill="#ECE8F6"/><rect x="23" y="42" width="5.5" height="5" rx="1.6" fill="#ECE8F6"/><rect x="30" y="42" width="5.5" height="5" rx="1.6" fill="#7033FF"/><g stroke="#4F2BD6" strokeWidth="0"/><rect x="35" y="50" width="22" height="4.5" fill="#C98A12"/><ellipse cx="46" cy="54.5" rx="11" ry="4.2" fill="#C98A12"/><ellipse cx="46" cy="50" rx="11" ry="4.2" fill="#F7BE36" stroke="#FFE39A" strokeWidth="1"/><rect x="35" y="44.5" width="22" height="4.5" fill="#C98A12"/><ellipse cx="46" cy="49.0" rx="11" ry="4.2" fill="#C98A12"/><ellipse cx="46" cy="44.5" rx="11" ry="4.2" fill="#F7BE36" stroke="#FFE39A" strokeWidth="1"/><rect x="35" y="39" width="22" height="4.5" fill="#C98A12"/><ellipse cx="46" cy="43.5" rx="11" ry="4.2" fill="#C98A12"/><ellipse cx="46" cy="39" rx="11" ry="4.2" fill="#F7BE36" stroke="#FFE39A" strokeWidth="1"/><path d="M41 39.2 h10" stroke="#FFF3CF" strokeWidth="1.4" strokeLinecap="round"/>
     </svg>
   );
 }
