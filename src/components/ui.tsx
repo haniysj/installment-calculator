@@ -9,7 +9,7 @@ type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'success';
 export function Button({ variant = 'secondary', size = 'md', icon, children, className = '', ...rest }:
   { variant?: Variant; size?: 'sm' | 'md'; icon?: ReactNode } & ButtonHTMLAttributes<HTMLButtonElement>) {
   const v: Record<Variant, string> = {
-    primary: 'bg-btn text-btn-fg border-btn hover:opacity-90',
+    primary: 'shimmer bg-btn text-btn-fg border-btn hover:opacity-90 shadow-[0_6px_18px_-8px_var(--brand)]',
     secondary: 'bg-card text-ink border-line hover:bg-card-2',
     ghost: 'bg-transparent text-ink border-transparent hover:bg-card-2',
     danger: 'bg-rose text-white border-rose hover:opacity-90 dark:text-[#1a0b09]',
@@ -17,7 +17,7 @@ export function Button({ variant = 'secondary', size = 'md', icon, children, cla
   };
   const s = size === 'sm' ? 'h-9 px-3 text-sm gap-1.5' : 'h-11 px-4 gap-2';
   return (
-    <button type="button" className={`inline-flex items-center justify-center rounded-xl border font-semibold whitespace-nowrap transition disabled:opacity-50 disabled:pointer-events-none ${v[variant]} ${s} ${className}`} {...rest}>
+    <button type="button" className={`inline-flex items-center justify-center rounded-full border font-bold whitespace-nowrap transition disabled:opacity-50 disabled:pointer-events-none ${v[variant]} ${s} ${className}`} {...rest}>
       {icon}
       {children}
     </button>
@@ -25,7 +25,7 @@ export function Button({ variant = 'secondary', size = 'md', icon, children, cla
 }
 
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <section className={`bg-card border border-line rounded-2xl ${className}`}>{children}</section>;
+  return <section className={`bg-card border border-line rounded-3xl card-shadow ${className}`}>{children}</section>;
 }
 
 export function CardTitle({ icon, children, actions }: { icon?: IconName; children: ReactNode; actions?: ReactNode }) {
@@ -48,7 +48,7 @@ const TONES: Record<Tone, string> = {
   violet: 'bg-violet-bg text-violet',
   blue: 'bg-blue-bg text-blue',
   gray: 'bg-card-2 text-muted border border-line',
-  ink: 'bg-btn text-btn-fg',
+  ink: 'bg-brand-bg text-brand',
 };
 
 export function Pill({ tone = 'gray', children, className = '' }: { tone?: Tone; children: ReactNode; className?: string }) {
@@ -78,7 +78,7 @@ export function ProgressBar({ value, label }: { value: number; label?: string })
   return (
     <div role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(v)} aria-label={label ?? 'نسبة السداد'}
       className="h-3 rounded-full bg-card-2 border border-line overflow-hidden">
-      <div className="h-full rounded-full bg-teal transition-[width] duration-300" style={{ width: `${v}%` }} />
+      <div className="h-full rounded-full bg-linear-to-l from-brand to-brand-2 transition-[width] duration-500" style={{ width: `${v}%` }} />
     </div>
   );
 }
@@ -123,7 +123,7 @@ export function Segmented<T extends string>({ value, options, onChange, ariaLabe
     <div role="radiogroup" aria-label={ariaLabel} className="grid gap-1 p-1 rounded-xl bg-card-2 border border-line" style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}>
       {options.map((o) => (
         <button key={o.value} type="button" role="radio" aria-checked={value === o.value} onClick={() => onChange(o.value)}
-          className={`min-h-10 px-2 rounded-lg text-[13.5px] font-bold flex items-center justify-center gap-1.5 text-center leading-tight transition ${value === o.value ? 'bg-btn text-btn-fg shadow-sm' : 'text-ink-2 hover:bg-card'}`}>
+          className={`min-h-10 px-2 rounded-lg text-[13.5px] font-bold flex items-center justify-center gap-1.5 text-center leading-tight transition ${value === o.value ? 'bg-card text-brand shadow-[0_2px_10px_-4px_var(--brand)] ring-1 ring-brand/30' : 'text-ink-2 hover:bg-card'}`}>
           {o.icon && <Icon name={o.icon} size={16} />}
           <span>{o.label}</span>
         </button>
@@ -210,6 +210,26 @@ export function Notice({ tone = 'blue', icon = 'info', children }: { tone?: Tone
     <div className={`flex items-start gap-2.5 rounded-xl px-3.5 py-2.5 text-[13.5px] font-semibold leading-relaxed ${TONES[tone]}`}>
       <Icon name={icon} size={18} className="mt-0.5 shrink-0" />
       <div className="flex-1">{children}</div>
+    </div>
+  );
+}
+
+/** Circular progress ring */
+export function ProgressRing({ value, size = 104, stroke = 10, light = false }: { value: number; size?: number; stroke?: number; light?: boolean }) {
+  const v = Math.max(0, Math.min(100, value));
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  return (
+    <div className="relative shrink-0" style={{ width: size, height: size }} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(v)} aria-label="نسبة السداد">
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke} stroke={light ? 'rgb(255 255 255 / 0.22)' : 'var(--line)'} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke} strokeLinecap="round"
+          stroke={light ? '#fff' : 'var(--brand)'} strokeDasharray={c} strokeDashoffset={c * (1 - v / 100)}
+          style={{ transition: 'stroke-dashoffset .7s cubic-bezier(.2,.8,.2,1)' }} />
+      </svg>
+      <div className="absolute inset-0 grid place-items-center text-center leading-none">
+        <div><div className="num font-extrabold text-[20px]">{v.toFixed(v >= 10 || v === 0 ? 0 : 1)}%</div><div className="text-[10.5px] font-bold opacity-80 mt-1">مسدَّد</div></div>
+      </div>
     </div>
   );
 }

@@ -26,7 +26,7 @@ function Shell() {
 
   return (
     <div className="min-h-dvh flex flex-col">
-      <header className="no-print sticky top-0 z-30 bg-paper/90 backdrop-blur border-b border-line" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+      <header className="no-print sticky top-0 z-30 bg-paper/70 backdrop-blur-xl border-b border-line/70" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center gap-3">
           <a href="#/" className="flex items-center gap-2.5 min-w-0" aria-label="الرئيسية">
             <AppMark size={38} />
@@ -36,7 +36,7 @@ function Shell() {
           <nav className="hidden md:flex items-center gap-1 ms-auto" aria-label="القائمة الرئيسية">
             {NAV.map((n) => (
               <a key={n.name} href={`#${n.path}`} aria-current={active === n.name ? 'page' : undefined}
-                className={`h-10 px-3 rounded-xl flex items-center gap-1.5 font-bold text-[14px] ${active === n.name ? 'bg-btn text-btn-fg' : 'text-ink-2 hover:bg-card'}`}>
+                className={`h-10 px-3.5 rounded-full flex items-center gap-1.5 font-bold text-[14px] ${active === n.name ? 'bg-brand-bg text-brand' : 'text-ink-2 hover:bg-card'}`}>
                 <Icon name={n.icon} size={17} />{n.label}
               </a>
             ))}
@@ -57,12 +57,12 @@ function Shell() {
         Prepared by: Hani Al Ghatrifi
       </footer>
 
-      <nav className="no-print md:hidden fixed bottom-0 inset-x-0 z-40 bg-card border-t border-line grid grid-cols-5"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} aria-label="القائمة الرئيسية">
+      <nav className="no-print md:hidden fixed inset-x-3 z-40 bg-card/85 backdrop-blur-xl border border-line rounded-full card-shadow grid grid-cols-5 px-1"
+        style={{ bottom: 'max(12px, env(safe-area-inset-bottom))' }} aria-label="القائمة الرئيسية">
         {NAV.map((n) => (
           <a key={n.name} href={`#${n.path}`} aria-current={active === n.name ? 'page' : undefined}
-            className={`h-16 flex flex-col items-center justify-center gap-0.5 text-[11px] font-bold ${active === n.name ? 'text-ink' : 'text-muted'}`}>
-            <span className={`h-7 w-12 grid place-items-center rounded-full ${active === n.name ? 'bg-saffron-bg text-saffron' : ''} ${n.name === 'new' ? 'bg-btn !text-btn-fg' : ''}`}>
+            className={`h-[62px] flex flex-col items-center justify-center gap-0.5 text-[10.5px] font-bold ${active === n.name ? 'text-brand' : 'text-muted'}`}>
+            <span className={`h-7 w-11 grid place-items-center rounded-full ${active === n.name ? 'bg-brand-bg text-brand' : ''} ${n.name === 'new' ? 'shimmer bg-btn !text-btn-fg shadow-[0_6px_14px_-6px_var(--brand)]' : ''}`}>
               <Icon name={n.icon} size={19} />
             </span>
             {n.label}

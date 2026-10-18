@@ -91,7 +91,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const applyTheme = () => {
       const dark = settings.theme === 'dark' || (settings.theme === 'system' && mq.matches);
       document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0B1724' : '#102A43');
+      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0D0A17' : '#7033FF');
     };
     applyTheme();
     mq.addEventListener('change', applyTheme);

@@ -62,6 +62,7 @@ def run(width, height, tag, mobile):
 
         # dashboard numbers
         page.goto(BASE + '/#/')
+        page.wait_for_timeout(1000)  # number ticker animation
         txt = page.inner_text('main')
         assert '250.000' in txt and '750.000' in txt, txt[:500]
         shot(page, f'{tag}-05-dashboard')

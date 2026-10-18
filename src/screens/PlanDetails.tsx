@@ -9,9 +9,9 @@ import { formatAmount, parseRial, toInputValue } from '../lib/money';
 import type { Plan, Strategy } from '../lib/types';
 import { useApp } from '../store';
 import { go } from '../router';
-import { Button, Card, CardTitle, DateBadge, EmptyState, Field, Modal, MoneyInput, Notice, Pill, ProgressBar, Segmented } from '../components/ui';
+import { Button, Card, CardTitle, DateBadge, EmptyState, Field, Modal, MoneyInput, Notice, Pill, ProgressRing, Segmented } from '../components/ui';
 import { FileIcon, Icon } from '../components/Icon';
-import { Money } from '../components/Money';
+import { AnimatedMoney, Money } from '../components/Money';
 import { FinalPill, StatusPill } from '../components/Status';
 import { PrintView, exportCSV } from '../components/PrintView';
 import { RowEditor } from './RowEditor';
@@ -106,29 +106,29 @@ export function PlanDetails({ id }: { id: string }) {
       <PrintView plan={plan} />
 
       {/* header */}
-      <Card className="p-4 sm:p-5 no-print">
+      <section className="hero-card p-5 sm:p-6 no-print">
         <div className="flex items-start gap-2 justify-between">
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="font-extrabold text-[20px] sm:text-[22px] leading-tight">{plan.name}</h1>
-              <button onClick={() => setRenaming(true)} aria-label="إعادة تسمية الخطة" className="size-8 grid place-items-center rounded-lg text-muted hover:bg-card-2"><Icon name="edit" size={17} /></button>
+              <button onClick={() => setRenaming(true)} aria-label="إعادة تسمية الخطة" className="size-8 grid place-items-center rounded-full glass-chip"><Icon name="edit" size={17} /></button>
             </div>
             <div className="flex gap-1.5 flex-wrap mt-1.5">
-              <Pill tone="violet">{MODE_LABEL[plan.mode]}</Pill>
-              <Pill tone="blue">{plan.strategy === 'fixed' ? 'قسط ثابت' : plan.strategy === 'equal' ? 'توزيع متساوٍ' : 'تسوية في القسط الأخير'}</Pill>
-              {s.completed ? <Pill tone="teal"><Icon name="check" size={13} />مسددة بالكامل</Pill>
-                : s.overdueCount > 0 && <Pill tone="rose">{s.overdueCount} متأخر</Pill>}
+              <span className="glass-chip rounded-full px-2.5 py-0.5 text-[11.5px] font-bold">{MODE_LABEL[plan.mode]}</span>
+              <span className="glass-chip rounded-full px-2.5 py-0.5 text-[11.5px] font-bold">{plan.strategy === 'fixed' ? 'قسط ثابت' : plan.strategy === 'equal' ? 'توزيع متساوٍ' : 'تسوية في القسط الأخير'}</span>
+              {s.completed ? <Pill tone="teal" className="!bg-white"><Icon name="check" size={13} />مسددة بالكامل</Pill>
+                : s.overdueCount > 0 && <Pill tone="rose" className="!bg-white">{s.overdueCount} متأخر</Pill>}
             </div>
           </div>
           <div className="flex items-center gap-1.5 shrink-0 relative">
-            <Button size="sm" variant="primary" icon={<Icon name="wallet" size={16} />} onClick={() => go(`/plan/${plan.id}/payments`)} disabled={s.completed}>
+            <Button size="sm" variant="secondary" className="!bg-white !text-[#4b22c9] !border-white" icon={<Icon name="wallet" size={16} />} onClick={() => go(`/plan/${plan.id}/payments`)} disabled={s.completed}>
               <span className="hidden sm:inline">تسجيل دفعة</span><span className="sm:hidden">دفعة</span>
             </Button>
-            <Button size="sm" variant="secondary" onClick={() => setMenu((m) => !m)} aria-label="المزيد من الإجراءات" aria-expanded={menu} icon={<Icon name="more" size={18} />} />
+            <Button size="sm" variant="secondary" className="!bg-white/15 !border-white/30 !text-white" onClick={() => setMenu((m) => !m)} aria-label="المزيد من الإجراءات" aria-expanded={menu} icon={<Icon name="more" size={18} />} />
             {menu && (
               <>
                 <div className="fixed inset-0 z-30" onClick={() => setMenu(false)} />
-                <div className="absolute top-11 left-0 z-40 w-60 bg-card border border-line rounded-2xl shadow-xl p-1.5 grid" role="menu">
+                <div className="absolute top-11 left-0 z-40 w-60 bg-card text-ink border border-line rounded-2xl shadow-xl p-1.5 grid" role="menu">
                   <MenuItem icon={<FileIcon type="csv" size={18} />} onClick={() => { setMenu(false); exportCSV(plan, settings.decimals); toast('تم تصدير الجدول (CSV) — يفتح في Excel.'); }}>تصدير الجدول CSV</MenuItem>
                   <MenuItem icon={<Icon name="print" size={18} />} onClick={() => { setMenu(false); setTimeout(() => window.print(), 50); }}>طباعة الخطة</MenuItem>
                   <MenuItem icon={<FileIcon type="pdf" size={18} />} onClick={() => { setMenu(false); toast('اختر «حفظ بصيغة PDF» من نافذة الطباعة.', 'info'); setTimeout(() => window.print(), 400); }}>حفظ PDF</MenuItem>
@@ -142,17 +142,19 @@ export function PlanDetails({ id }: { id: string }) {
             )}
           </div>
         </div>
-        <div className="mt-4 flex items-center gap-3">
-          <div className="flex-1"><ProgressBar value={s.progress} /></div>
-          <span className="num font-extrabold">{s.progress.toFixed(1)}%</span>
+        <div className="flex items-center gap-4 mt-4">
+          <div className="flex-1 min-w-0">
+            <div className="text-[13px] font-bold opacity-80">الرصيد المتبقي</div>
+            <div className="font-extrabold text-[28px] sm:text-[34px] leading-tight"><AnimatedMoney value={s.outstanding} bold /></div>
+            <div className="flex flex-wrap gap-1.5 mt-2.5 text-[12px] font-bold">
+              <span className="glass-chip rounded-full px-2.5 py-1">المدفوع <Money value={s.totalPaid} /></span>
+              <span className="glass-chip rounded-full px-2.5 py-1">من <Money value={plan.principal} /></span>
+              <span className="glass-chip rounded-full px-2.5 py-1">آخر قسط {s.expectedEnd ? formatDateLong(s.expectedEnd) : '—'}</span>
+            </div>
+          </div>
+          <ProgressRing value={s.progress} light size={96} />
         </div>
-        <dl className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3 text-[13px]">
-          <Mini label="المبلغ الأصلي" value={<Money value={plan.principal} />} />
-          <Mini label="المدفوع" value={<Money value={s.totalPaid} />} tone="teal" />
-          <Mini label="الرصيد المتبقي" value={<Money value={s.outstanding} />} tone="saffron" />
-          <Mini label="تاريخ آخر قسط" value={s.expectedEnd ? formatDateLong(s.expectedEnd) : '—'} />
-        </dl>
-      </Card>
+      </section>
 
       {/* plan settings / fixed installment */}
       <div className="grid lg:grid-cols-2 gap-4 no-print">
@@ -264,7 +266,7 @@ function Mini({ label, value, tone }: { label: string; value: React.ReactNode; t
 
 function rowTone(e: ScheduleEntry) {
   if (e.status === 'cancelled' || e.status === 'skipped') return 'opacity-60';
-  if (e.isCurrentMonth && e.type === 'installment') return 'bg-saffron-bg/45';
+  if (e.isCurrentMonth && e.type === 'installment') return 'bg-brand-bg/60';
   if (e.status === 'overdue') return 'bg-rose-bg/40';
   if (e.type !== 'installment') return 'bg-blue-bg/40';
   if (e.isFinal) return 'bg-violet-bg/35';
@@ -283,7 +285,7 @@ function DesktopRow({ plan, e, onRun, onOpen }: { plan: Plan; e: ScheduleEntry; 
           <input type="date" aria-label={`تاريخ القسط ${e.no}`} className="bg-transparent border border-transparent hover:border-line focus:border-ink-2 rounded-lg px-2 py-1 num"
             value={e.date} onChange={(ev) => ev.target.value && onRun(changeInstallmentDate(plan, row!.id, ev.target.value))} />
         ) : <span className="num px-2">{formatDateShort(e.date)}</span>}
-        {e.isCurrentMonth && e.type === 'installment' && <span className="ms-1 text-[11px] font-bold text-saffron">● الشهر الحالي</span>}
+        {e.isCurrentMonth && e.type === 'installment' && <span className="ms-1 text-[11px] font-bold text-brand">● الشهر الحالي</span>}
       </td>
       <td className="p-2 text-left">
         {editable ? <InlineMoney value={row!.planned} label={`القسط المخطط ${e.no}`} onCommit={(v) => onRun(editInstallment(plan, row!.id, v, 'keep', unit))} />
@@ -332,7 +334,7 @@ function MobileRow({ e, onOpen }: { e: ScheduleEntry; onOpen: () => void }) {
   const tone = e.status === 'overdue' ? 'rose' : e.status === 'paid' || e.status === 'paid-short' ? 'teal' : e.isCurrentMonth ? 'saffron' : 'default';
   return (
     <li>
-      <button onClick={onOpen} className={`w-full text-right flex items-center gap-3 rounded-2xl border border-line p-2.5 ${rowTone(e)} ${e.isCurrentMonth && e.type === 'installment' ? '!border-saffron-strong' : ''}`}>
+      <button onClick={onOpen} className={`w-full text-right flex items-center gap-3 rounded-2xl border border-line p-2.5 bg-card ${rowTone(e)} ${e.isCurrentMonth && e.type === 'installment' ? 'glow-border' : ''}`}>
         <DateBadge date={e.date} tone={tone as any} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">

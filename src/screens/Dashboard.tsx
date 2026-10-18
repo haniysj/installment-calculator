@@ -4,9 +4,9 @@ import { formatDateLong } from '../lib/dates';
 import { MODE_LABEL } from '../lib/csv';
 import { useApp } from '../store';
 import { go } from '../router';
-import { Button, Card, CardTitle, DateBadge, EmptyState, Pill, ProgressBar } from '../components/ui';
+import { Button, Card, CardTitle, DateBadge, EmptyState, Pill, ProgressRing } from '../components/ui';
 import { FileIcon, Icon, type IconName } from '../components/Icon';
-import { Money } from '../components/Money';
+import { AnimatedMoney, Money } from '../components/Money';
 import { StatusPill } from '../components/Status';
 import { PrintView, exportCSV } from '../components/PrintView';
 
@@ -37,36 +37,41 @@ export function Dashboard() {
   return (
     <div className="grid gap-4">
       <PrintView plan={plan} />
-      <Card className="p-4 sm:p-5 no-print">
-        <div className="flex flex-wrap items-center gap-2 justify-between mb-3">
+      <section className="hero-card p-5 sm:p-6 no-print">
+        <div className="flex items-center gap-2 justify-between">
           <div className="flex items-center gap-2 min-w-0">
-            <h1 className="font-extrabold text-[20px] truncate">{plan.name}</h1>
-            <Pill tone="violet">{MODE_LABEL[plan.mode]}</Pill>
-            {s.completed && <Pill tone="teal"><Icon name="check" size={13} />مسددة بالكامل</Pill>}
+            <h1 className="font-extrabold text-[19px] truncate">{plan.name}</h1>
+            <span className="glass-chip rounded-full px-2.5 py-0.5 text-[11.5px] font-bold whitespace-nowrap">{MODE_LABEL[plan.mode]}</span>
           </div>
           {plans.length > 1 && (
-            <select aria-label="اختيار الخطة المعروضة" className="field !w-auto !min-h-10 !py-1.5 text-[14px] font-bold max-w-56"
+            <select aria-label="اختيار الخطة المعروضة" className="glass-chip rounded-full h-9 px-3 text-[13px] font-bold text-white max-w-44 [&>option]:text-black"
               value={plan.id} onChange={(e) => updateSettings({ activePlanId: e.target.value })}>
               {plans.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           )}
         </div>
-        <div className="flex items-baseline justify-between gap-2 mb-2">
-          <span className="text-[14px] font-bold text-muted">نسبة السداد</span>
-          <span className="num font-extrabold text-[18px]">{s.progress.toFixed(1)}%</span>
+        <div className="flex items-center gap-4 mt-4">
+          <div className="flex-1 min-w-0">
+            <div className="text-[13px] font-bold opacity-80">الرصيد المتبقي</div>
+            <div className="font-extrabold text-[30px] sm:text-[36px] leading-tight mt-0.5"><AnimatedMoney value={s.outstanding} bold /></div>
+            <div className="flex flex-wrap gap-1.5 mt-3">
+              <span className="glass-chip rounded-full px-2.5 py-1 text-[12px] font-bold">المدفوع <Money value={s.totalPaid} /></span>
+              <span className="glass-chip rounded-full px-2.5 py-1 text-[12px] font-bold">من <Money value={s.principal} /></span>
+              {s.completed && <span className="rounded-full px-2.5 py-1 text-[12px] font-bold bg-white text-[#0b8a5f]">✓ مسددة بالكامل</span>}
+            </div>
+          </div>
+          <ProgressRing value={s.progress} light />
         </div>
-        <ProgressBar value={s.progress} />
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 mt-4">
-          <Kpi icon="wallet" label="المبلغ الأصلي" value={<Money value={s.principal} bold />} />
-          <Kpi icon="check" label="إجمالي المدفوع" value={<Money value={s.totalPaid} bold />} tone="teal" />
-          <Kpi icon="coins" label="الرصيد المتبقي" value={<Money value={s.outstanding} bold />} tone="saffron" />
-          <Kpi icon="receipt" label="القسط الشهري الحالي" value={<Money value={s.currentInstallment} bold />} />
-          <Kpi icon="check" label="أقساط مدفوعة" value={<span className="num">{s.paidCount}</span>} />
-          <Kpi icon="clock" label="أقساط متبقية" value={<span className="num">{s.remainingCount}</span>}
-            extra={s.overdueCount > 0 ? <Pill tone="rose">{s.overdueCount} متأخر</Pill> : null} />
-          <Kpi icon="flag" label="تاريخ السداد المتوقع" value={s.expectedEnd ? formatDateLong(s.expectedEnd) : '—'} className="col-span-2" />
-        </div>
-      </Card>
+      </section>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 no-print">
+        <Kpi icon="receipt" label="القسط الشهري الحالي" value={<AnimatedMoney value={s.currentInstallment} bold />} tone="brand" className="col-span-2 lg:col-span-1"
+          extra={s.currentInstallmentDate ? <span className="num text-[11.5px]">{s.currentInstallmentDate.replace(/-/g, '/')}</span> : null} />
+        <Kpi icon="check" label="أقساط مدفوعة" value={<span className="num">{s.paidCount}</span>} tone="teal" />
+        <Kpi icon="clock" label="أقساط متبقية" value={<span className="num">{s.remainingCount}</span>}
+          extra={s.overdueCount > 0 ? <Pill tone="rose">{s.overdueCount} متأخر</Pill> : null} />
+        <Kpi icon="flag" label="تاريخ السداد المتوقع" value={s.expectedEnd ? formatDateLong(s.expectedEnd) : '—'} className="col-span-2 lg:col-span-1" />
+      </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 no-print">
         <Action icon={<Icon name="plus" />} label="إنشاء خطة تقسيط جديدة" onClick={() => go('/new')} primary />
@@ -85,7 +90,7 @@ export function Dashboard() {
             {upcoming.map((e) => (
               <li key={e.key}>
                 <button onClick={() => go(`/plan/${plan.id}/payments?row=${e.id}`)}
-                  className={`w-full flex items-center gap-3 rounded-xl border p-2.5 text-right hover:bg-card-2 ${e.isCurrentMonth ? 'border-saffron-strong bg-saffron-bg/40' : 'border-line'}`}>
+                  className={`w-full flex items-center gap-3 rounded-2xl border p-2.5 text-right bg-card hover:bg-card-2 ${e.isCurrentMonth ? 'glow-border' : 'border-line'}`}>
                   <DateBadge date={e.date} tone={e.status === 'overdue' ? 'rose' : e.isCurrentMonth ? 'saffron' : 'default'} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap">
@@ -96,7 +101,7 @@ export function Dashboard() {
                   </div>
                   <div className="text-left">
                     <div className="font-extrabold text-[17px]"><Money value={(e.planned ?? 0) - e.actual} /></div>
-                    <div className="text-[12px] text-teal font-bold">تسجيل دفعة</div>
+                    <div className="text-[12px] text-brand font-bold">تسجيل دفعة ←</div>
                   </div>
                 </button>
               </li>
@@ -108,11 +113,13 @@ export function Dashboard() {
   );
 }
 
-function Kpi({ icon, label, value, tone, extra, className = '' }: { icon: IconName; label: string; value: ReactNode; tone?: 'teal' | 'saffron'; extra?: ReactNode; className?: string }) {
-  const t = tone === 'teal' ? 'bg-teal-bg/60' : tone === 'saffron' ? 'bg-saffron-bg/60' : 'bg-card-2';
+function Kpi({ icon, label, value, tone, extra, className = '' }: { icon: IconName; label: string; value: ReactNode; tone?: 'teal' | 'saffron' | 'brand'; extra?: ReactNode; className?: string }) {
+  const ic = tone === 'teal' ? 'bg-teal-bg text-teal' : tone === 'saffron' ? 'bg-saffron-bg text-saffron' : tone === 'brand' ? 'bg-brand-bg text-brand' : 'bg-card-2 text-muted';
   return (
-    <div className={`rounded-xl border border-line p-3 ${t} ${className}`}>
-      <div className="flex items-center gap-1.5 text-[12.5px] font-bold text-muted"><Icon name={icon} size={15} />{label}{extra && <span className="ms-auto">{extra}</span>}</div>
+    <div className={`rounded-2xl border border-line bg-card card-shadow p-3.5 ${className}`}>
+      <div className="flex items-center gap-2 text-[12.5px] font-bold text-muted">
+        <span className={`size-7 rounded-lg grid place-items-center ${ic}`}><Icon name={icon} size={15} /></span>{label}{extra && <span className="ms-auto">{extra}</span>}
+      </div>
       <div className="font-extrabold text-[18px] sm:text-[20px] mt-1">{value}</div>
     </div>
   );
@@ -121,7 +128,7 @@ function Kpi({ icon, label, value, tone, extra, className = '' }: { icon: IconNa
 function Action({ icon, label, onClick, primary }: { icon: ReactNode; label: string; onClick: () => void; primary?: boolean }) {
   return (
     <button onClick={onClick}
-      className={`min-h-[72px] rounded-2xl border p-3 flex flex-col items-center justify-center gap-1.5 text-center text-[13.5px] font-bold leading-tight ${primary ? 'bg-btn text-btn-fg border-btn col-span-2 sm:col-span-1' : 'bg-card border-line hover:bg-card-2'}`}>
+      className={`min-h-[76px] rounded-2xl border p-3 flex flex-col items-center justify-center gap-1.5 text-center text-[13.5px] font-bold leading-tight card-shadow transition hover:-translate-y-0.5 ${primary ? 'shimmer bg-btn text-btn-fg border-btn col-span-2 sm:col-span-1' : 'bg-card border-line hover:border-brand/40'}`}>
       {icon}{label}
     </button>
   );

@@ -2,17 +2,17 @@
 export function AppMark({ size = 40 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true">
-      <rect x="2" y="2" width="60" height="60" rx="16" fill="#102A43" />
+      <rect x="2" y="2" width="60" height="60" rx="16" fill="#7033FF" />
       <rect x="13" y="15" width="34" height="34" rx="6" fill="#fff" />
       <rect x="13" y="15" width="34" height="9" rx="4" fill="#E09A2D" />
       <rect x="13" y="20" width="34" height="4" fill="#E09A2D" />
       <rect x="19" y="11" width="4" height="8" rx="2" fill="#fff" />
       <rect x="37" y="11" width="4" height="8" rx="2" fill="#fff" />
-      <rect x="18" y="29" width="24" height="4" rx="2" fill="#D9E2EC" />
-      <rect x="18" y="29" width="17" height="4" rx="2" fill="#1F7A6D" />
-      <rect x="18" y="37" width="24" height="4" rx="2" fill="#D9E2EC" />
-      <rect x="18" y="37" width="9" height="4" rx="2" fill="#1F7A6D" />
-      <circle cx="47" cy="47" r="11" fill="#1F7A6D" stroke="#fff" strokeWidth="3" />
+      <rect x="18" y="29" width="24" height="4" rx="2" fill="#E7E4F0" />
+      <rect x="18" y="29" width="17" height="4" rx="2" fill="#0B8A5F" />
+      <rect x="18" y="37" width="24" height="4" rx="2" fill="#E7E4F0" />
+      <rect x="18" y="37" width="9" height="4" rx="2" fill="#0B8A5F" />
+      <circle cx="47" cy="47" r="11" fill="#0B8A5F" stroke="#fff" strokeWidth="3" />
       <path d="M42 47.2l3.4 3.3 6.4-6.6" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
