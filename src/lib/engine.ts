@@ -530,6 +530,74 @@ export function resetPlan(plan: Plan, unit = 1): Result<Plan> {
   return { ok: true, value: { ...r.value, name: plan.name, notes: plan.notes }, message: 'تمت إعادة تعيين الخطة.' };
 }
 
+export interface PaymentPatch { date: ISODate; amount: number; note?: string }
+
+/** Edit a recorded payment (amount, date, note). The schedule is recalculated from actual payments. */
+export function editPayment(plan: Plan, paymentId: string, patch: PaymentPatch, unit = 1): Result<Plan> {
+  const pay = plan.payments.find((x) => x.id === paymentId);
+  if (!pay) return { ok: false, error: 'الدفعة غير موجودة.' };
+  if (!isValidISO(patch.date)) return { ok: false, error: 'تاريخ الدفعة غير صحيح.' };
+  if (!Number.isInteger(patch.amount) || patch.amount <= 0) return { ok: false, error: 'أدخل مبلغ دفعة أكبر من صفر.' };
+  const others = totalPaid(plan) - pay.amount;
+  if (others + patch.amount > plan.principal) return { ok: false, error: `المبلغ يتجاوز الرصيد المتبقي (${fmt(plan.principal - others)}).` };
+  const note = patch.note?.trim() ?? pay.note;
+
+  if (pay.installmentId) {
+    const row = plan.installments.find((r) => r.id === pay.installmentId);
+    const wasClosed = !!row?.closed;
+    const del = deletePayment(plan, paymentId, unit);
+    if (!del.ok) return del;
+    const rec = recordPayment(del.value, { date: patch.date, amount: patch.amount, kind: 'installment', installmentId: pay.installmentId, closeRow: wasClosed, note }, unit);
+    if (!rec.ok) return rec;
+    const fresh = rec.value.payments[rec.value.payments.length - 1];
+    const payments = rec.value.payments.map((x) => (x.id === fresh.id ? { ...x, id: pay.id, createdAt: pay.createdAt } : x));
+    return { ok: true, value: touch({ ...rec.value, payments }), message: 'تم تعديل الدفعة وإعادة حساب الأقساط.' };
+  }
+  let p: Plan = { ...plan, payments: plan.payments.map((x) => (x.id === paymentId ? { ...x, date: patch.date, amount: patch.amount, note } : x)) };
+  p = recalc(p, firstOpenIndex(p), { unit });
+  return { ok: true, value: touch(p), message: 'تم تعديل الدفعة وإعادة حساب الأقساط.' };
+}
+
+/** Move the start of the plan: every installment keeps its order and shifts by the same number of months. */
+export function changeFirstDate(plan: Plan, date: ISODate): Result<Plan> {
+  if (!isValidISO(date)) return { ok: false, error: 'تاريخ أول قسط غير صحيح.' };
+  const ref = plan.installments[0]?.dueDate ?? plan.firstDate;
+  const a = parseISO(ref), b = parseISO(date);
+  const delta = (b.y * 12 + b.m) - (a.y * 12 + a.m);
+  const atDay = (d: ISODate) => { const x = parseISO(d); return addMonths(`${x.y}-${String(x.m).padStart(2, '0')}-01`, delta, b.d); };
+  const installments = plan.installments.map((r) => ({ ...r, dueDate: atDay(r.dueDate) }));
+  if (installments.length) installments[0].dueDate = date;
+  const p: Plan = {
+    ...plan, installments, firstDate: date, anchorDay: b.d,
+    originalEndDate: atDay(plan.originalEndDate),
+    input: { ...plan.input, firstDate: date, fixedStartDate: null },
+  };
+  return { ok: true, value: touch(p), message: 'تم تغيير بداية الخطة ونقل مواعيد الأقساط.' };
+}
+
+/**
+ * Record earlier installments as paid on their due dates (for a plan that started before it was entered).
+ * `count` = number of first open installments; otherwise every open installment due before `today`.
+ */
+export function markPastInstallmentsPaid(plan: Plan, opts: { count?: number; today?: ISODate } = {}, unit = 1): Result<Plan> {
+  const today = opts.today ?? todayISO();
+  let p = plan;
+  let n = 0;
+  for (const r of plan.installments) {
+    if (opts.count != null ? n >= opts.count : r.dueDate >= today) break;
+    const row = p.installments.find((x) => x.id === r.id)!;
+    if (row.closed || row.skipped || row.cancelled) continue;
+    const amount = dueOf(p, row);
+    if (amount <= 0) continue;
+    const res = recordPayment(p, { date: row.dueDate, amount, kind: 'installment', installmentId: row.id, note: 'مدفوع سابقاً' }, unit);
+    if (!res.ok) break;
+    p = res.value;
+    n++;
+  }
+  if (n === 0) return { ok: false, error: 'لا توجد أقساط سابقة غير مسجّلة.' };
+  return { ok: true, value: touch(p), message: `تم تسجيل ${n} ${n === 1 ? 'قسط سابق' : 'أقساط سابقة'} كمدفوعة.` };
+}
+
 // ───────────────────────── derived view ─────────────────────────
 
 export type RowStatus = 'paid' | 'paid-short' | 'partial' | 'overdue' | 'current' | 'upcoming' | 'skipped' | 'cancelled';
@@ -572,10 +640,13 @@ export function finalIndex(plan: Plan): number {
 }
 
 /** Display number of an installment: counts only months that are part of the plan (cancelled rows are skipped). */
+/**
+ * Display numbers in one chronological sequence: installments and extra/down payments share it
+ * (months no longer part of the plan are skipped). Keys are installment ids and payment ids.
+ */
 export function installmentNumbers(plan: Plan): Map<string, number> {
   const m = new Map<string, number>();
-  let n = 0;
-  for (const r of plan.installments) if (!r.cancelled) m.set(r.id, ++n);
+  for (const e of buildSchedule(plan)) if (e.no != null) m.set(e.id, e.no);
   return m;
 }
 
@@ -592,7 +663,6 @@ export function periodOf(date: ISODate, today: ISODate): Period {
 
 export function buildSchedule(plan: Plan, today: ISODate = todayISO()): ScheduleEntry[] {
   const fi = finalIndex(plan);
-  const nums = installmentNumbers(plan);
   type Ev = { order: number; date: ISODate; entry: Omit<ScheduleEntry, 'balanceAfter'>; deduct: number };
   const evs: Ev[] = [];
   plan.installments.forEach((r, i) => {
@@ -603,7 +673,7 @@ export function buildSchedule(plan: Plan, today: ISODate = todayISO()): Schedule
       order: 1, date: r.dueDate,
       deduct: pd + dueOf(plan, r),
       entry: {
-        key: r.id, type: 'installment', no: nums.get(r.id)!, id: r.id, date: r.dueDate,
+        key: r.id, type: 'installment', no: 0, id: r.id, date: r.dueDate,
         planned: r.planned, actual: pd, status: st, isFinal: i === fi,
         isCurrentMonth: sameMonth(r.dueDate, today), period: periodOf(r.dueDate, today),
         overdue: !r.closed && !r.skipped && !r.cancelled && r.dueDate < today,
@@ -615,7 +685,7 @@ export function buildSchedule(plan: Plan, today: ISODate = todayISO()): Schedule
     evs.push({
       order: x.kind === 'down' ? 0 : 2, date: x.date, deduct: x.amount,
       entry: {
-        key: x.id, type: x.kind as 'extra' | 'down', no: null, id: x.id, date: x.date, planned: null,
+        key: x.id, type: x.kind as 'extra' | 'down', no: 0, id: x.id, date: x.date, planned: null,
         actual: x.amount, status: x.kind as 'extra' | 'down', isFinal: false,
         isCurrentMonth: sameMonth(x.date, today), period: periodOf(x.date, today), overdue: false, note: x.note, index: -1,
       },
@@ -623,9 +693,10 @@ export function buildSchedule(plan: Plan, today: ISODate = todayISO()): Schedule
   });
   evs.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.order - b.order || a.entry.index - b.entry.index));
   let bal = plan.principal;
+  let n = 0;
   return evs.map((e) => {
     bal -= e.deduct;
-    return { ...e.entry, balanceAfter: bal };
+    return { ...e.entry, no: ++n, balanceAfter: bal };
   });
 }
 
@@ -665,7 +736,8 @@ export function summarize(plan: Plan, today: ISODate = todayISO()): PlanSummary 
     progress: plan.principal > 0 ? Math.min(100, (paid / plan.principal) * 100) : 0,
     currentInstallment: next ? dueOf(plan, next) : 0,
     currentInstallmentDate: next?.dueDate ?? null,
-    paidCount: active.filter((r) => r.closed).length,
+    // paid installments + extra/down payments (they are part of the same sequence)
+    paidCount: active.filter((r) => r.closed).length + plan.payments.filter((x) => x.kind !== 'installment').length,
     remainingCount: open.length,
     overdueCount: open.filter((r) => r.dueDate < today).length,
     expectedEnd: out <= 0 ? lastPay?.date ?? finalRow?.dueDate ?? null : finalRow?.dueDate ?? null,

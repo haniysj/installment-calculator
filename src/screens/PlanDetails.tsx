@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  addInstallment, buildSchedule, changeFixedAmount, changePrincipal, changeInstallmentDate, editInstallment, firstOpenIndex,
+  addInstallment, buildSchedule, changeFirstDate, markPastInstallmentsPaid, changeFixedAmount, changePrincipal, changeInstallmentDate, editInstallment, firstOpenIndex,
   recalc, restoreDefault, resetPlan, summarize, uid, type ScheduleEntry,
 } from '../lib/engine';
 import { formatDateLong, formatDateShort, todayISO } from '../lib/dates';
@@ -14,6 +14,7 @@ import { FileIcon, Icon } from '../components/Icon';
 import { AnimatedMoney, Money } from '../components/Money';
 import { FinalPill, StatusPill } from '../components/Status';
 import { PrintView, exportCSV } from '../components/PrintView';
+import { PaymentEditor } from './PaymentEditor';
 import { RowEditor } from './RowEditor';
 
 
@@ -23,6 +24,7 @@ export function PlanDetails({ id }: { id: string }) {
   const plan = getPlan(id);
   const [asc, setAsc] = useState(true);
   const [editing, setEditing] = useState<string | null>(null);
+  const [editingPay, setEditingPay] = useState<string | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [menu, setMenu] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -90,6 +92,12 @@ export function PlanDetails({ id }: { id: string }) {
   }
 
   const editingRow = editing ? plan.installments.find((r) => r.id === editing) : undefined;
+  const today = todayISO();
+  const pastOpen = plan.installments.filter((r) => !r.closed && !r.skipped && !r.cancelled && r.dueDate < today).length;
+  async function markPast() {
+    if (await confirm({ title: 'تسجيل الأقساط السابقة كمدفوعة؟', body: `سيُسجَّل ${pastOpen} ${pastOpen === 1 ? 'قسط' : 'أقساط'} كمدفوعة بمبالغها المخططة وبتاريخ استحقاق كل منها. يمكنك تعديل أي دفعة بعدها.`, confirmText: 'تسجيل' }))
+      run(markPastInstallmentsPaid(plan!, { today }, unit), false);
+  }
 
   return (
     <div className="grid gap-4">
@@ -176,6 +184,15 @@ export function PlanDetails({ id }: { id: string }) {
         }>جدول الأقساط</CardTitle>
 
         {notice && <div className="mb-3"><Notice tone="saffron" icon="refresh">{notice}</Notice></div>}
+        {pastOpen > 0 && (
+          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-card-2 p-3">
+            <Icon name="clock" size={18} className="text-saffron shrink-0" />
+            <span className="flex-1 min-w-48 text-[13.5px] font-semibold text-ink-2">
+              يوجد <span className="num font-extrabold">{pastOpen}</span> {pastOpen === 1 ? 'قسط' : 'أقساط'} حلّ موعدها ولم تُسجَّل. إذا كنت قد دفعتها قبل إدخال الخطة سجّلها دفعة واحدة.
+            </span>
+            <Button size="sm" variant="success" icon={<Icon name="check" size={16} />} onClick={markPast}>تسجيلها كمدفوعة</Button>
+          </div>
+        )}
 
         {/* desktop table */}
         <div className="hidden md:block overflow-x-auto rounded-xl border border-line">
@@ -197,7 +214,7 @@ export function PlanDetails({ id }: { id: string }) {
                   {(k === 0 || sorted[k - 1].period !== e.period) && (
                     <tr><td colSpan={7} className="px-3 pt-3 pb-1.5 bg-card"><PeriodLabel period={e.period} /></td></tr>
                   )}
-                  <DesktopRow plan={plan} e={e} onRun={run} onOpen={() => setEditing(e.id)} />
+                  <DesktopRow plan={plan} e={e} onRun={run} onOpen={() => (e.type === 'installment' ? setEditing(e.id) : setEditingPay(e.id))} />
                 </Fragment>
               ))}
             </tbody>
@@ -218,7 +235,7 @@ export function PlanDetails({ id }: { id: string }) {
           {sorted.map((e, k) => (
             <Fragment key={e.key}>
               {(k === 0 || sorted[k - 1].period !== e.period) && <li className="pt-2 first:pt-0"><PeriodLabel period={e.period} /></li>}
-              <MobileRow e={e} onOpen={() => e.type === 'installment' ? setEditing(e.id) : go(`/plan/${plan.id}/payments`)} />
+              <MobileRow e={e} onOpen={() => (e.type === 'installment' ? setEditing(e.id) : setEditingPay(e.id))} />
             </Fragment>
           ))}
         </ul>
@@ -239,7 +256,9 @@ export function PlanDetails({ id }: { id: string }) {
 
       {plan.notes && <Card className="p-4 no-print"><CardTitle icon="note">ملاحظات</CardTitle><p className="whitespace-pre-wrap text-ink-2">{plan.notes}</p></Card>}
 
-      {editingRow && <RowEditor plan={plan} row={editingRow} onClose={() => setEditing(null)} onRun={run} />}
+      {editingRow && <RowEditor plan={plan} row={editingRow} onClose={() => setEditing(null)} onRun={run}
+        onEditPayment={(pid) => { setEditing(null); setEditingPay(pid); }} />}
+      {editingPay && <PaymentEditor plan={plan} paymentId={editingPay} onClose={() => setEditingPay(null)} />}
       {renaming && <RenameModal plan={plan} onClose={() => setRenaming(false)} />}
     </div>
   );
@@ -289,7 +308,7 @@ function DesktopRow({ plan, e, onRun, onOpen }: { plan: Plan; e: ScheduleEntry; 
   const editable = !!row && !row.closed && !row.skipped;
   return (
     <tr className={`border-t border-line ${rowTone(e)}`}>
-      <td className="p-2.5 num font-bold">{e.no ?? <Icon name="coins" size={16} className="text-blue" />}</td>
+      <td className="p-2.5 num font-bold"><span className="inline-flex items-center gap-1">{e.no}{e.type !== 'installment' && <Icon name="coins" size={14} className="text-blue" />}</span></td>
       <td className="p-2">
         {editable ? (
           <input type="date" aria-label={`تاريخ القسط ${e.no}`} className="bg-transparent border border-transparent hover:border-line focus:border-ink-2 rounded-lg px-2 py-1 num"
@@ -310,7 +329,11 @@ function DesktopRow({ plan, e, onRun, onOpen }: { plan: Plan; e: ScheduleEntry; 
           <button onClick={onOpen} className="h-8 px-2.5 rounded-lg border border-line hover:bg-card-2 text-[12.5px] font-bold inline-flex items-center gap-1">
             <Icon name="more" size={15} />إجراءات
           </button>
-        ) : null}
+        ) : (
+          <button onClick={onOpen} className="h-8 px-2.5 rounded-lg border border-line hover:bg-card-2 text-[12.5px] font-bold inline-flex items-center gap-1">
+            <Icon name="edit" size={14} />تعديل
+          </button>
+        )}
       </td>
     </tr>
   );
@@ -348,7 +371,7 @@ function MobileRow({ e, onOpen }: { e: ScheduleEntry; onOpen: () => void }) {
         <DateBadge date={e.date} tone={tone as any} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="font-extrabold">{e.no ? <>القسط <span className="num">{e.no}</span></> : e.type === 'down' ? 'دفعة أولى' : 'دفعة إضافية'}</span>
+            <span className="font-extrabold">{e.type === 'installment' ? 'القسط' : e.type === 'down' ? 'دفعة أولى' : 'دفعة إضافية'} <span className="num">{e.no}</span></span>
             {e.isFinal && <FinalPill />}
           </div>
           <div className="mt-1"><StatusPill entry={e} /></div>
@@ -357,7 +380,7 @@ function MobileRow({ e, onOpen }: { e: ScheduleEntry; onOpen: () => void }) {
         <div className="text-left shrink-0">
           {e.planned != null && <div className={`font-extrabold text-[16px] ${e.status === 'cancelled' ? 'line-through' : ''}`}><Money value={e.planned} /></div>}
           {e.actual > 0 && <div className="text-[12.5px] font-bold text-teal">مدفوع <Money value={e.actual} /></div>}
-          {e.type === 'installment' && <Icon name="chevron" size={16} className="text-muted inline-block mt-1" />}
+          {e.type === 'installment' ? <Icon name="chevron" size={16} className="text-muted inline-block mt-1" /> : <Icon name="edit" size={14} className="text-muted inline-block mt-1" />}
         </div>
       </button>
     </li>
@@ -380,6 +403,9 @@ function PlanControls({ plan, onRun, onStrategy }: { plan: Plan; onRun: (r: any)
   const fixedErr = fixed == null || fixed <= 0 ? 'يجب أن يكون القسط الشهري الثابت أكبر من صفر.' : null;
   const principalErr = principal == null || principal <= 0 ? 'أدخل مبلغاً أكبر من صفر.' : null;
   const showFixed = plan.mode === 'fixed' || plan.strategy === 'fixed';
+  const currentFirst = plan.installments[0]?.dueDate ?? plan.firstDate;
+  const [first, setFirst] = useState(currentFirst);
+  useEffect(() => setFirst(currentFirst), [currentFirst]);
 
   return (
     <Card className="p-4 sm:p-5">
@@ -388,6 +414,12 @@ function PlanControls({ plan, onRun, onStrategy }: { plan: Plan; onRun: (r: any)
         <Field label="المبلغ الإجمالي" htmlFor="pc-principal" error={principalErr} hint="عند تغييره يُعاد حساب المدة والأقساط غير المدفوعة فوراً.">
           <MoneyInput id="pc-principal" value={principal} invalid={!!principalErr}
             onChange={(v) => { setPrincipal(v); if (v && v > 0 && v !== plan.principal) schedule(() => onRun(changePrincipal(plan, v, unit))); }} />
+        </Field>
+        <Field label="تاريخ أول قسط (بداية الخطة)" htmlFor="pc-first" hint="إذا بدأت الخطة قبل إدخالها في النظام اختر تاريخها الفعلي؛ تنتقل كل المواعيد معها، والدفعات المسجّلة لا تتغير.">
+          <div className="flex gap-2">
+            <input id="pc-first" type="date" className="field" value={first} onChange={(e) => setFirst(e.target.value)} />
+            <Button disabled={!first || first === currentFirst} onClick={() => onRun(changeFirstDate(plan, first))}>حفظ</Button>
+          </div>
         </Field>
         {showFixed && (
           <Field label="القسط الشهري الثابت" htmlFor="pc-fixed" error={fixedErr} hint="عند تغييره يُعاد حساب الجدول وتاريخ السداد الأخير فوراً.">

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   addInstallment, buildSchedule, changeFixedAmount, changePrincipal, checkInvariants, createPlan, deleteInstallment,
   deletePayment, editInstallment, equalSplit, fixedSplit, outstanding, paidFor, postponeInstallment, recordPayment,
-  resetPlan, restoreDefault, skipInstallment, summarize,
+  resetPlan, restoreDefault, skipInstallment, summarize, editPayment, changeFirstDate, markPastInstallmentsPaid,
 } from '../src/lib/engine';
 import { addMonths, monthsInclusive } from '../src/lib/dates';
 import { formatAmount, parseRial } from '../src/lib/money';
@@ -327,8 +327,9 @@ describe('schedule view follows the plan', () => {
     p = ok(recordPayment(p, { date: '2026-09-20', amount: R(300), kind: 'extra', extraStrategy: 'shorten' }));
     const s = buildSchedule(p, TODAY);
     expect(s.some((e) => e.status === 'cancelled')).toBe(false);
-    const nos = s.filter((e) => e.type === 'installment').map((e) => e.no);
-    expect(nos).toEqual([1, 2, 3, 4, 5]);
+    expect(s.map((e) => e.no)).toEqual([1, 2, 3, 4, 5, 6]); // extra payment takes number 2
+    expect(s[1].type).toBe('extra');
+    expect(summarize(p, TODAY).paidCount).toBe(2); // installment + extra payment
     expect(s[s.length - 1].balanceAfter).toBe(0);
   });
   it('orders paid months and extra payments by date: past, current, future', () => {
@@ -352,5 +353,52 @@ describe('whole rials (no decimals)', () => {
     expect(q.installments.map((r) => r.planned / 1000)).toEqual([400, 300, 300]);
     const z = ok(recordPayment(p, { date: '2026-11-01', amount: R(100), kind: 'extra', extraStrategy: 'reduce' }, 1000));
     expect(z.installments.map((r) => r.planned / 1000)).toEqual([300, 300, 300]);
+  });
+});
+
+describe('editing previous payments and plan start', () => {
+  it('edits an installment payment amount and date', () => {
+    let p = make({ months: 5 });
+    p = ok(recordPayment(p, { date: '2026-11-01', amount: R(200), kind: 'installment', installmentId: p.installments[0].id }));
+    const id = p.payments[0].id;
+    p = ok(editPayment(p, id, { date: '2026-11-03', amount: R(150) }));
+    expect(p.payments.length).toBe(1);
+    expect(p.payments[0].id).toBe(id);
+    expect(p.payments[0].date).toBe('2026-11-03');
+    expect(p.installments[0].closed).toBe(true); // stays closed, shortfall carried forward
+    expect(amounts(p)).toEqual([200, 212.5, 212.5, 212.5, 212.5]);
+    valid(p);
+    p = ok(editPayment(p, id, { date: '2026-11-03', amount: R(300) }));
+    expect(amounts(p)).toEqual([200, 175, 175, 175, 175]);
+    valid(p);
+    expect(editPayment(p, id, { date: '2026-11-03', amount: R(1001) }).ok).toBe(false);
+  });
+  it('edits an extra payment', () => {
+    let p = make({ mode: 'fixed', fixedAmount: R(150) });
+    p = ok(recordPayment(p, { date: '2026-11-15', amount: R(300), kind: 'extra', extraStrategy: 'shorten' }));
+    p = ok(editPayment(p, p.payments[0].id, { date: '2026-11-20', amount: R(150), note: 'تعديل' }));
+    expect(amounts(p)).toEqual([150, 150, 150, 150, 150, 100]);
+    expect(p.payments[0].note).toBe('تعديل');
+    valid(p);
+  });
+  it('moves the plan start and marks earlier installments as paid', () => {
+    let p = make({ mode: 'fixed', fixedAmount: R(150), firstDate: '2026-11-10' });
+    p = ok(changeFirstDate(p, '2026-06-10'));
+    expect(p.installments.map((r) => r.dueDate)).toEqual(['2026-06-10', '2026-07-10', '2026-08-10', '2026-09-10', '2026-10-10', '2026-11-10', '2026-12-10']);
+    p = ok(markPastInstallmentsPaid(p, { today: TODAY }));
+    expect(p.payments.length).toBe(5);
+    expect(p.payments.map((x) => x.date)).toEqual(['2026-06-10', '2026-07-10', '2026-08-10', '2026-09-10', '2026-10-10']);
+    const s = summarize(p, TODAY);
+    expect(s.paidCount).toBe(5);
+    expect(s.outstanding).toBe(R(250));
+    valid(p);
+    expect(markPastInstallmentsPaid(p, { today: TODAY }).ok).toBe(false);
+  });
+  it('marks the first N installments when creating a plan that started earlier', () => {
+    let p = make({ months: 10, firstDate: '2026-01-05' });
+    p = ok(markPastInstallmentsPaid(p, { count: 3 }));
+    expect(p.installments.slice(0, 3).every((r) => r.closed)).toBe(true);
+    expect(p.installments[3].closed).toBe(false);
+    valid(p);
   });
 });

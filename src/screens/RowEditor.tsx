@@ -14,10 +14,11 @@ import { StatusPill } from '../components/Status';
 
 type Tab = 'pay' | 'edit' | 'more';
 
-export function RowEditor({ plan, row, onClose, onRun }: { plan: Plan; row: Installment; onClose: () => void; onRun: (r: any) => Promise<boolean> }) {
+export function RowEditor({ plan, row, onClose, onRun, onEditPayment }: { plan: Plan; row: Installment; onClose: () => void; onRun: (r: any) => Promise<boolean>; onEditPayment: (paymentId: string) => void }) {
   const { unit, confirm, upsertPlan, toast } = useApp();
   const index = plan.installments.findIndex((r) => r.id === row.id);
   const paid = paidFor(plan, row.id);
+  const rowPays = plan.payments.filter((x) => x.installmentId === row.id).sort((a, b) => (a.date < b.date ? -1 : 1));
   const due = dueOf(plan, row);
   const open = !row.closed && !row.skipped;
   const status = rowStatus(plan, row, todayISO());
@@ -140,8 +141,20 @@ export function RowEditor({ plan, row, onClose, onRun }: { plan: Plan; row: Inst
                 if (await confirm({ title: 'حذف هذا القسط؟', body: 'يُحذف القسط غير المدفوع وتُعاد توزيع قيمته.', confirmText: 'حذف', danger: true })) done(deleteInstallment(plan, row.id, unit));
               }}>حذف القسط</Button>}
             </div>
-            {row.closed && (
-              <Notice tone="teal" icon="check">هذا القسط مدفوع. لتعديله احذف دفعته من <button className="underline font-bold" onClick={() => go(`/plan/${plan.id}/payments`)}>سجل الدفعات</button>.</Notice>
+            {rowPays.length > 0 && (
+              <div className="grid gap-1.5">
+                <div className="text-[13px] font-bold text-ink-2">دفعات هذا القسط</div>
+                {rowPays.map((x) => (
+                  <button key={x.id} onClick={() => onEditPayment(x.id)}
+                    className="flex items-center gap-2.5 rounded-xl border border-line px-3 py-2 text-right hover:bg-card-2">
+                    <Icon name="check" size={16} className="text-teal" />
+                    <span className="num text-[13px] flex-1">{x.date.replace(/-/g, '/')}{x.note && <span className="text-muted"> — {x.note}</span>}</span>
+                    <Money value={x.amount} className="font-extrabold text-teal" />
+                    <Icon name="edit" size={15} className="text-muted" />
+                  </button>
+                ))}
+                <p className="text-[12px] text-muted">اضغط على الدفعة لتعديل مبلغها أو تاريخها أو حذفها.</p>
+              </div>
             )}
           </div>
         )}

@@ -8,6 +8,7 @@ import { go } from '../router';
 import { Button, Card, CardTitle, EmptyState, Field, MoneyInput, Notice, Pill, ProgressBar, Segmented } from '../components/ui';
 import { Icon } from '../components/Icon';
 import { Money } from '../components/Money';
+import { PaymentEditor } from './PaymentEditor';
 
 export function Payments({ id, installmentId }: { id: string; installmentId?: string }) {
   const { getPlan, apply, unit, confirm, settings } = useApp();
@@ -20,6 +21,7 @@ export function Payments({ id, installmentId }: { id: string; installmentId?: st
   const [date, setDate] = useState(todayISO());
   const [note, setNote] = useState('');
   const [closeRow, setCloseRow] = useState(false);
+  const [editingPay, setEditingPay] = useState<string | null>(null);
   const [extraStrategy, setExtraStrategy] = useState<'shorten' | 'reduce'>('shorten');
 
   // after each saved payment: stay on the row if still open (amount = what is left), else move to the next open row
@@ -125,10 +127,13 @@ export function Payments({ id, installmentId }: { id: string; installmentId?: st
                   <Icon name={x.kind === 'installment' ? 'check' : 'coins'} size={19} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-bold">{x.kind === 'installment' ? <>سداد القسط <span className="num">{rowNo(x.installmentId)}</span></> : x.kind === 'down' ? 'دفعة أولى' : 'دفعة إضافية'}</div>
+                  <div className="font-bold">{x.kind === 'installment' ? <>سداد القسط <span className="num">{rowNo(x.installmentId)}</span></> : <>{x.kind === 'down' ? 'دفعة أولى' : 'دفعة إضافية'} <span className="num">{rowNo(x.id)}</span></>}</div>
                   <div className="text-[12.5px] text-muted"><span className="num">{formatDateShort(x.date)}</span>{x.note && <> — {x.note}</>}</div>
                 </div>
                 <div className="font-extrabold text-teal"><Money value={x.amount} /></div>
+                <button aria-label="تعديل الدفعة" className="size-9 grid place-items-center rounded-lg text-ink-2 hover:bg-card-2" onClick={() => setEditingPay(x.id)}>
+                  <Icon name="edit" size={18} />
+                </button>
                 <button aria-label="حذف الدفعة" className="size-9 grid place-items-center rounded-lg text-rose hover:bg-rose-bg"
                   onClick={async () => {
                     if (await confirm({ title: 'حذف هذه الدفعة؟', body: 'سيرتفع الرصيد المتبقي بقيمتها ويُعاد فتح القسط المرتبط بها إن لزم.', confirmText: 'حذف', danger: true }))
@@ -139,6 +144,7 @@ export function Payments({ id, installmentId }: { id: string; installmentId?: st
           </ul>
         )}
       </Card>
+      {editingPay && <PaymentEditor plan={plan} paymentId={editingPay} onClose={() => setEditingPay(null)} />}
     </div>
   );
 }

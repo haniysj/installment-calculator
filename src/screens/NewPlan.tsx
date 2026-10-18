@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { createPlan, summarize } from '../lib/engine';
+import { createPlan, markPastInstallmentsPaid, summarize } from '../lib/engine';
 import { addMonths, formatDateLong, todayISO } from '../lib/dates';
 import type { Mode, PlanInput, SchedulingMethod } from '../lib/types';
 import { useApp } from '../store';
@@ -23,6 +23,8 @@ export function NewPlan() {
   const [fixedStart, setFixedStart] = useState(addMonths(todayISO(), 1));
   const [notes, setNotes] = useState('');
   const [touched, setTouched] = useState(false);
+  const [startedBefore, setStartedBefore] = useState(false);
+  const [paidBefore, setPaidBefore] = useState<string | null>(null);
 
   const input: PlanInput = {
     name, principal: principal ?? 0, firstDate, mode, method,
@@ -30,7 +32,16 @@ export function NewPlan() {
     fixedStartDate: mode === 'fixed' && useFixedStart ? fixedStart : null,
     downPayment: down ?? 0, notes,
   };
-  const result = useMemo(() => createPlan(input, unit), [JSON.stringify(input), unit]); // eslint-disable-line react-hooks/exhaustive-deps
+  const base = useMemo(() => createPlan(input, unit), [JSON.stringify(input), unit]); // eslint-disable-line react-hooks/exhaustive-deps
+  const today = todayISO();
+  const isPastStart = firstDate < today;
+  const pastCount = base.ok ? base.value.installments.filter((r) => r.dueDate < today).length : 0;
+  const paidN = Math.max(0, Math.min(base.ok ? base.value.installments.length : 0, paidBefore == null ? pastCount : Number(paidBefore) || 0));
+  const result = useMemo(() => {
+    if (!base.ok || !isPastStart || !startedBefore || paidN === 0) return base;
+    const r = markPastInstallmentsPaid(base.value, { count: paidN }, unit);
+    return r.ok ? r : base;
+  }, [base, isPastStart, startedBefore, paidN, unit]);
   const preview = result.ok ? result.value : null;
   const s = preview ? summarize(preview) : null;
   const showError = !result.ok && (touched || (principal != null && (mode !== 'fixed' || fixedAmount != null)));
@@ -62,6 +73,20 @@ export function NewPlan() {
               <input id="firstDate" type="date" className="field" value={firstDate} onChange={(e) => setFirstDate(e.target.value)} />
             </Field>
           </div>
+          {isPastStart && (
+            <div className="rounded-2xl border border-line bg-card-2 p-3 grid gap-2.5">
+              <label className="flex items-start gap-2.5 font-semibold text-[14px] cursor-pointer">
+                <input type="checkbox" className="size-5 mt-0.5 accent-[var(--teal)]" checked={startedBefore} onChange={(e) => setStartedBefore(e.target.checked)} />
+                <span>بدأت هذه الخطة سابقاً وسدّدت أقساطاً قبل إدخالها<br /><span className="text-muted text-[12.5px] font-normal">تُسجَّل الأقساط المختارة كمدفوعة بتاريخ استحقاق كل منها، ويمكنك تعديل أي دفعة لاحقاً.</span></span>
+              </label>
+              {startedBefore && (
+                <Field label="عدد الأقساط المسدَّدة سابقاً" htmlFor="paidBefore" hint={`حلّ موعد ${pastCount} ${pastCount === 1 ? 'قسط' : 'أقساط'} حتى اليوم.`}>
+                  <input id="paidBefore" className="field num text-left !w-32" inputMode="numeric" value={paidBefore ?? String(pastCount)}
+                    onChange={(e) => setPaidBefore(e.target.value.replace(/[^\d٠-٩]/g, '').replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x660)))} />
+                </Field>
+              )}
+            </div>
+          )}
 
           <Field label="طريقة حساب القسط">
             <Segmented ariaLabel="طريقة حساب القسط" value={mode} onChange={setMode} options={[
@@ -141,6 +166,7 @@ export function NewPlan() {
               {mode === 'fixed' && <Stat label="أقساط كاملة" value={<span className="num">{s.fullInstallments}</span>} />}
               <Stat label="إجمالي المبلغ" value={<Money value={preview.principal} />} />
               {(down ?? 0) > 0 && <Stat label="بعد الدفعة الأولى" value={<Money value={s.outstanding} />} />}
+              {s.paidCount > 0 && startedBefore && <Stat label="المسدَّد سابقاً" value={<><span className="num">{s.paidCount}</span> <span className="text-[12px] text-muted">قسط</span> · <Money value={s.totalPaid} /></>} />}
             </dl>
             {mode === 'fixed' && s.durationMonths > 1 && (
               <Notice tone="violet" icon="flag">
@@ -154,8 +180,8 @@ export function NewPlan() {
                 <thead className="bg-card-2 sticky top-0"><tr className="text-muted"><th className="p-2 text-right">#</th><th className="p-2 text-right">التاريخ</th><th className="p-2 text-left">القسط</th></tr></thead>
                 <tbody>
                   {preview.installments.map((r, i) => (
-                    <tr key={r.id} className={`border-t border-line ${i === preview.installments.length - 1 ? 'bg-violet-bg/60 font-bold' : ''}`}>
-                      <td className="p-2 num">{i + 1}</td>
+                    <tr key={r.id} className={`border-t border-line ${r.closed ? 'bg-teal-bg/50' : i === preview.installments.length - 1 ? 'bg-violet-bg/60 font-bold' : ''}`}>
+                      <td className="p-2 num">{r.closed ? <span className="text-teal">✓ {i + 1}</span> : i + 1}</td>
                       <td className="p-2 num">{r.dueDate.replace(/-/g, '/')}</td>
                       <td className="p-2 text-left"><Money value={r.planned} /></td>
                     </tr>
