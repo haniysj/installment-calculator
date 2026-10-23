@@ -27,7 +27,7 @@ export function SettingsScreen() {
   }
 
   return (
-    <div className="grid lg:grid-cols-2 gap-4 items-start">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
       <Card className="p-4 sm:p-5">
         <CardTitle icon="settings">إعدادات التطبيق</CardTitle>
         <div className="grid gap-4">

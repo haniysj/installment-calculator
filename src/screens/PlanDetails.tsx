@@ -155,7 +155,7 @@ export function PlanDetails({ id }: { id: string }) {
       </section>
 
       {/* plan settings / fixed installment */}
-      <div className="grid lg:grid-cols-2 gap-4 no-print">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 no-print">
         <PlanControls plan={plan} onRun={run} onStrategy={setStrategy} />
         {plan.mode === 'fixed' || plan.strategy === 'fixed' ? <FixedSummary plan={plan} /> : (
           <Card className="p-4 sm:p-5">

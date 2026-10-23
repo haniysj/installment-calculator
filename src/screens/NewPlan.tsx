@@ -58,7 +58,7 @@ export function NewPlan() {
   }
 
   return (
-    <div className="grid lg:grid-cols-[1fr_400px] gap-4 items-start">
+    <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-4 items-start">
       <Card className="p-4 sm:p-5">
         <CardTitle icon="plus">إنشاء خطة تقسيط جديدة</CardTitle>
         <form className="grid gap-4" onSubmit={(e) => { e.preventDefault(); submit(); }} noValidate>

@@ -156,7 +156,7 @@ export function Modal({ open, onClose, title, children, footer, wide = false }:
           <button type="button" onClick={onClose} aria-label="إغلاق" className="size-9 grid place-items-center rounded-lg hover:bg-card-2 text-muted"><Icon name="x" /></button>
         </div>
         <div className="overflow-y-auto px-5 py-4 flex-1">{children}</div>
-        {footer && <div className="px-5 py-3 border-t border-line flex flex-wrap gap-2 justify-start" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>{footer}</div>}
+        {footer && <div className="px-4 sm:px-5 py-3 border-t border-line flex flex-nowrap gap-2 justify-start [&>button]:px-3 sm:[&>button]:px-4" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>{footer}</div>}
       </div>
     </div>
   );
@@ -181,7 +181,7 @@ export function ConfirmHost() {
 export function Toasts() {
   const { toasts, dismissToast } = useApp();
   return (
-    <div className="fixed z-[60] inset-x-3 bottom-[84px] md:bottom-6 md:left-6 md:right-auto md:w-[380px] flex flex-col gap-2 no-print" aria-live="polite">
+    <div className="fixed z-[60] inset-x-3 top-[calc(env(safe-area-inset-top)+70px)] md:top-auto md:bottom-6 md:left-6 md:right-auto md:w-[380px] flex flex-col gap-2 no-print pointer-events-none [&>*]:pointer-events-auto" aria-live="polite">
       {toasts.map((t) => (
         <div key={t.id} role={t.kind === 'error' ? 'alert' : 'status'}
           className={`toast-in flex items-start gap-2.5 rounded-2xl px-4 py-3 shadow-lg border text-[14px] font-semibold ${

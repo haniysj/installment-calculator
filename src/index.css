@@ -137,6 +137,10 @@ input[type='date'] { direction: ltr; text-align: right; }
 }
 .field:focus { outline: none; border-color: var(--ink-2); box-shadow: 0 0 0 3px color-mix(in srgb, var(--saffron-strong) 30%, transparent); }
 .field[aria-invalid='true'] { border-color: var(--rose); }
+/* long content (e.g. a select with long options) must never widen the page on phones */
+.grid > *, .flex > * { min-width: 0; }
+select.field { max-width: 100%; text-overflow: ellipsis; }
+
 
 }
 

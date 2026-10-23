@@ -50,7 +50,7 @@ export function Backup() {
   const sameIds = pending ? pending.plans.filter((p) => plans.some((x) => x.id === p.id)).length : 0;
 
   return (
-    <div className="grid lg:grid-cols-2 gap-4 items-start">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
       <Card className="p-4 sm:p-5">
         <CardTitle icon="download">نسخة احتياطية</CardTitle>
         <p className="text-ink-2 leading-relaxed mb-4">بياناتك محفوظة على هذا الجهاز فقط ولا تُرسل لأي خادم. صدّر ملف نسخة احتياطية بانتظام واحفظه في مكان آمن (Google Drive أو البريد) لنقل الخطط إلى جهاز آخر.</p>

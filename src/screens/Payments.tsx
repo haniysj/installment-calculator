@@ -51,9 +51,10 @@ export function Payments({ id, installmentId }: { id: string; installmentId?: st
   }
 
   return (
-    <div className="grid lg:grid-cols-[1fr_1fr] gap-4 items-start">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
       <Card className="p-4 sm:p-5">
-        <CardTitle icon="wallet" actions={<Button size="sm" onClick={() => go(`/plan/${plan.id}`)}>الجدول<Icon name="chevron" size={16} /></Button>}>تسجيل دفعة — {plan.name}</CardTitle>
+        <CardTitle icon="wallet" actions={<Button size="sm" onClick={() => go(`/plan/${plan.id}`)}>الجدول<Icon name="chevron" size={16} /></Button>}>تسجيل دفعة</CardTitle>
+        <p className="-mt-2 mb-3 text-[14px] font-bold text-brand break-words">{plan.name}</p>
         <div className="flex items-center gap-3 mb-1"><div className="flex-1"><ProgressBar value={s.progress} /></div><span className="num font-bold">{Math.round(s.progress)}%</span></div>
         <p className="text-[13px] text-muted mb-4">الرصيد المتبقي: <Money value={out} className="font-extrabold text-ink" /></p>
         {out <= 0 ? <Notice tone="teal" icon="check">تم سداد هذه الخطة بالكامل.</Notice> : (
