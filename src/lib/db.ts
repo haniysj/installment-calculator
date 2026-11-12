@@ -1,14 +1,19 @@
 import Dexie, { type Table } from 'dexie';
 import { DEFAULT_SETTINGS, type Plan, type Settings } from './types';
+import { EMPTY_SYNC_META, type SyncMeta } from './sync';
 
 interface SettingsRow extends Settings { key: 'app' }
+interface MetaRow extends SyncMeta { key: 'cloud' }
 
 class InstallmentDB extends Dexie {
   plans!: Table<Plan, string>;
   settings!: Table<SettingsRow, string>;
+  meta!: Table<MetaRow, string>;
   constructor(name = 'installment-calculator') {
     super(name);
     this.version(1).stores({ plans: 'id, name, updatedAt', settings: 'key' });
+    // v2: cloud sync state (account token, cursor, unsent changes)
+    this.version(2).stores({ plans: 'id, name, updatedAt', settings: 'key', meta: 'key' });
   }
 }
 
@@ -60,4 +65,15 @@ export async function requestPersistence(): Promise<boolean> {
     if (navigator.storage?.persist) return await navigator.storage.persist();
   } catch { /* ignore */ }
   return false;
+}
+
+export async function loadSyncMeta(): Promise<SyncMeta> {
+  const row = await db.meta.get('cloud');
+  if (!row) return { ...EMPTY_SYNC_META };
+  const { key: _k, ...rest } = row;
+  return { ...EMPTY_SYNC_META, ...rest };
+}
+
+export async function saveSyncMeta(m: SyncMeta): Promise<void> {
+  await db.meta.put({ ...m, key: 'cloud' });
 }

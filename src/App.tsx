@@ -10,12 +10,13 @@ import { Payments } from './screens/Payments';
 import { Plans } from './screens/Plans';
 import { Backup } from './screens/Backup';
 import { SettingsScreen } from './screens/Settings';
+import { CloudBadge } from './screens/CloudCard';
 
 const NAV: { name: Route['name']; path: string; label: string; icon: IconName }[] = [
   { name: 'dashboard', path: '/', label: 'الرئيسية', icon: 'home' },
   { name: 'plans', path: '/plans', label: 'الخطط', icon: 'list' },
   { name: 'new', path: '/new', label: 'خطة جديدة', icon: 'plus' },
-  { name: 'backup', path: '/backup', label: 'النسخ', icon: 'cloud' },
+  { name: 'backup', path: '/backup', label: 'الحفظ', icon: 'cloud' },
   { name: 'settings', path: '/settings', label: 'الإعدادات', icon: 'settings' },
 ];
 
@@ -33,6 +34,7 @@ function Shell() {
             <span className="font-extrabold text-[18px] sm:text-[20px] leading-tight truncate">{settings.appTitle}</span>
           </a>
           {!online && <Pill tone="saffron" className="shrink-0"><Icon name="offline" size={13} />غير متصل</Pill>}
+          <span className="ms-auto md:ms-0 md:order-last"><CloudBadge /></span>
           <nav className="hidden md:flex items-center gap-1 ms-auto" aria-label="القائمة الرئيسية">
             {NAV.map((n) => (
               <a key={n.name} href={`#${n.path}`} aria-current={active === n.name ? 'page' : undefined}

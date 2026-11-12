@@ -4,6 +4,9 @@ from playwright.sync_api import sync_playwright, expect
 B = sys.argv[1] if len(sys.argv) > 1 else 'http://localhost:4173'
 OUT = sys.argv[2] if len(sys.argv) > 2 else 'e2e/shots'
 errors = []
+import datetime
+_t = datetime.date.today()
+PAST = sum(1 for k in range(12) if datetime.date(2026 + (4 + k) // 12, (4 + k) % 12 + 1, 10) < _t)  # due 10th, from May 2026
 with sync_playwright() as p:
     b = p.chromium.launch()
     ctx = b.new_context(viewport={'width': 390, 'height': 844}, device_scale_factor=2, is_mobile=True, has_touch=True)
@@ -12,7 +15,7 @@ with sync_playwright() as p:
     pg.goto(B + '/#/new')
     pg.fill('#name', 'جهاز'); pg.fill('#principal', '1200'); pg.fill('#firstDate', '10/05/2026'); pg.fill('#fixed', '100')
     pg.get_by_text('بدأت هذه الخطة سابقاً').click()
-    expect(pg.locator('#paidBefore')).to_have_value('6')  # May..Oct 10 are before 18 Oct
+    expect(pg.locator('#paidBefore')).to_have_value(str(PAST))
     pg.fill('#paidBefore', '5')
     pg.screenshot(path=f'{OUT}/past-01-new.png', full_page=True)
     pg.get_by_role('button', name='حفظ الخطة').click(); pg.wait_for_url(re.compile('#/plan/')); url = pg.url
@@ -21,7 +24,7 @@ with sync_playwright() as p:
     expect(pg.get_by_role('button', name='تسجيلها كمدفوعة')).to_be_visible()
     pg.get_by_role('button', name='تسجيلها كمدفوعة').click()
     pg.get_by_role('dialog').get_by_role('button', name='تسجيل').click()
-    expect(pg.get_by_text('تم تسجيل 1 قسط سابق').first).to_be_visible()
+    expect(pg.get_by_text(re.compile('تم تسجيل %d' % (PAST - 5))).first).to_be_visible()
     # extra payment in the past
     pg.goto(url + '/payments')
     pg.get_by_role('radio', name='دفعة إضافية').click(); pg.fill('#pay-amt', '200'); pg.fill('#pay-date', '20/07/2026')
@@ -42,7 +45,7 @@ with sync_playwright() as p:
     # dashboard paid count = 6 installments + 1 extra
     pg.goto(B + '/#/'); pg.wait_for_timeout(1000)
     txt = pg.inner_text('main')
-    assert re.search(r'أقساط مدفوعة\s*6', txt), txt[:400]
+    assert re.search(r'أقساط مدفوعة\s*%d' % PAST, txt), txt[:400]
     # move start date one month earlier
     pg.goto(url); pg.fill('#pc-first', '10/04/2026')
     pg.get_by_role('button', name='حفظ', exact=True).click()

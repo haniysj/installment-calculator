@@ -6,6 +6,7 @@ import { useApp } from '../store';
 import { Button, Card, CardTitle, Notice, Segmented } from '../components/ui';
 import { FileIcon, Icon } from '../components/Icon';
 import { downloadFile } from '../components/PrintView';
+import { CloudCard } from './CloudCard';
 
 export function Backup() {
   const { plans, settings, replacePlans, updateSettings, confirm, toast } = useApp();
@@ -51,9 +52,10 @@ export function Backup() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+      <CloudCard />
       <Card className="p-4 sm:p-5">
-        <CardTitle icon="download">نسخة احتياطية</CardTitle>
-        <p className="text-ink-2 leading-relaxed mb-4">بياناتك محفوظة على هذا الجهاز فقط ولا تُرسل لأي خادم. صدّر ملف نسخة احتياطية بانتظام واحفظه في مكان آمن (Google Drive أو البريد) لنقل الخطط إلى جهاز آخر.</p>
+        <CardTitle icon="download">نسخة احتياطية (ملف)</CardTitle>
+        <p className="text-ink-2 leading-relaxed mb-4">نسخة إضافية تحتفظ بها بنفسك، حتى مع الحفظ السحابي. صدّر الملف من وقت لآخر واحفظه في مكان آمن (Google Drive أو البريد).</p>
         <Button variant="primary" icon={<FileIcon type="json" size={20} />} onClick={exportJSON} disabled={plans.length === 0}>
           تصدير جميع الخطط ({plans.length})
         </Button>

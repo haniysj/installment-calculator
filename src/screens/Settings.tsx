@@ -86,7 +86,7 @@ export function SettingsScreen() {
 
       <Card className="p-4 sm:p-5">
         <CardTitle icon="lock">الخصوصية والبيانات</CardTitle>
-        <p className="text-[14px] text-ink-2 leading-relaxed mb-3">لا تسجيل دخول ولا خوادم: كل الخطط محفوظة في متصفح هذا الجهاز (IndexedDB). حذف بيانات المتصفح يحذفها، لذا احتفظ بنسخة احتياطية.</p>
+        <p className="text-[14px] text-ink-2 leading-relaxed mb-3">الخطط تُحفظ أولاً على هذا الجهاز. إذا فعّلت الحفظ السحابي من شاشة «الحفظ» تُرفع أيضاً إلى حسابك (قاعدة بيانات Neon عبر Vercel) ولا يراها غيرك. بدون الحفظ السحابي، حذف بيانات المتصفح يحذف الخطط.</p>
         <Button variant="danger" icon={<Icon name="trash" size={17} />} onClick={wipe} disabled={plans.length === 0}>حذف جميع البيانات</Button>
       </Card>
 

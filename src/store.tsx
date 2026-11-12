@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { deletePlanFromDB, loadPlans, loadSettings, replaceAllPlans, requestPersistence, savePlan, saveSettings } from './lib/db';
+import { deletePlanFromDB, loadPlans, loadSettings, loadSyncMeta, replaceAllPlans, requestPersistence, savePlan, saveSettings, saveSyncMeta } from './lib/db';
+import { EMPTY_SYNC_META, afterSync, applyRemote, buildChanges, type SyncMeta } from './lib/sync';
+import { CloudError, cloud, cloudMessage } from './lib/cloud';
 import { roundingUnit } from './lib/money';
 import { attachMonthPayments } from './lib/engine';
 import { DEFAULT_SETTINGS, type Plan, type Result, type Settings } from './lib/types';
@@ -8,7 +10,14 @@ type ToastKind = 'success' | 'error' | 'info';
 interface Toast { id: number; kind: ToastKind; text: string }
 interface ConfirmReq { title: string; body?: string; confirmText?: string; danger?: boolean; resolve: (v: boolean) => void }
 
+export type SyncStatus = 'off' | 'syncing' | 'synced' | 'pending' | 'offline' | 'error';
+export interface CloudState { status: SyncStatus; username: string | null; lastSyncAt: string | null; error: string | null; pending: number }
+
 interface AppState {
+  cloudState: CloudState;
+  connectCloud: (mode: 'register' | 'login', username: string, pin: string) => Promise<string | null>;
+  disconnectCloud: () => Promise<void>;
+  syncNow: () => Promise<void>;
   loaded: boolean;
   dbError: string | null;
   plans: Plan[];
@@ -51,6 +60,92 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [confirmReq, setConfirmReq] = useState<ConfirmReq | null>(null);
   const toastId = useRef(0);
+  const [cloudState, setCloudState] = useState<CloudState>({ status: 'off', username: null, lastSyncAt: null, error: null, pending: 0 });
+  const metaRef = useRef<SyncMeta>({ ...EMPTY_SYNC_META });
+  const plansRef = useRef<Plan[]>([]);
+  const syncing = useRef(false);
+  const again = useRef(false);
+  const timer = useRef<number>();
+  useEffect(() => { plansRef.current = plans; }, [plans]);
+
+  const setMeta = useCallback(async (m: SyncMeta) => {
+    metaRef.current = m;
+    setCloudState((c) => ({ ...c, username: m.username, lastSyncAt: m.lastSyncAt, pending: m.dirty.length + m.tombstones.length,
+      status: !m.token ? 'off' : c.status === 'off' ? 'pending' : c.status }));
+    try { await saveSyncMeta(m); } catch (e) { console.error(e); }
+  }, []);
+
+  /** Two-way sync with the cloud. Safe to call any time; overlapping calls are merged. */
+  const syncNow = useCallback(async () => {
+    const meta = metaRef.current;
+    if (!meta.token) return;
+    if (syncing.current) { again.current = true; return; }
+    if (typeof navigator !== 'undefined' && !navigator.onLine) { setCloudState((c) => ({ ...c, status: 'offline' })); return; }
+    syncing.current = true;
+    setCloudState((c) => ({ ...c, status: 'syncing', error: null }));
+    try {
+      const changes = buildChanges(plansRef.current, meta);
+      const res = await cloud.sync(meta.token, changes, meta.cursor);
+      const merged = applyRemote(plansRef.current, res.plans);
+      if (merged.saved.length || merged.removed.length) {
+        await Promise.all([...merged.saved.map((p) => savePlan(p)), ...merged.removed.map((id) => deletePlanFromDB(id))]);
+        plansRef.current = merged.plans;
+        setPlans(merged.plans);
+      }
+      await setMeta(afterSync(metaRef.current, changes, plansRef.current, res.cursor, new Date().toISOString()));
+      setCloudState((c) => ({ ...c, status: metaRef.current.dirty.length + metaRef.current.tombstones.length ? 'pending' : 'synced', error: null }));
+    } catch (e) {
+      const code = e instanceof CloudError ? e.code : 'UNKNOWN';
+      if (code === 'IC_SESSION') {
+        await setMeta({ ...metaRef.current, token: null });
+        setCloudState((c) => ({ ...c, status: 'off', error: cloudMessage(code) }));
+      } else {
+        setCloudState((c) => ({ ...c, status: code === 'NETWORK' ? 'offline' : 'error', error: cloudMessage(code) }));
+      }
+    } finally {
+      syncing.current = false;
+      if (again.current) { again.current = false; window.setTimeout(() => { void syncNowRef.current(); }, 300); }
+    }
+  }, [setMeta]);
+  const syncNowRef = useRef(syncNow);
+  syncNowRef.current = syncNow;
+
+  const scheduleSync = useCallback(() => {
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => { void syncNowRef.current(); }, 1200);
+  }, []);
+
+  const markDirty = useCallback((ids: string[], removed: string[] = []) => {
+    const m = metaRef.current;
+    if (!m.token) return;
+    const at = new Date().toISOString();
+    void setMeta({
+      ...m,
+      dirty: [...new Set([...m.dirty.filter((id) => !removed.includes(id)), ...ids])],
+      tombstones: [...m.tombstones.filter((t) => !removed.includes(t.id) && !ids.includes(t.id)), ...removed.map((id) => ({ id, at }))],
+    });
+    scheduleSync();
+  }, [setMeta, scheduleSync]);
+
+  const connectCloud = useCallback(async (mode: 'register' | 'login', username: string, pin: string) => {
+    try {
+      const s = mode === 'register' ? await cloud.register(username, pin) : await cloud.login(username, pin);
+      // everything on this device is sent once; the server keeps the newest copy of each plan
+      await setMeta({ ...EMPTY_SYNC_META, token: s.token, username: s.username, dirty: plansRef.current.map((p) => p.id) });
+      setCloudState((c) => ({ ...c, status: 'pending', error: null }));
+      await syncNowRef.current();
+      return null;
+    } catch (e) {
+      return cloudMessage(e instanceof CloudError ? e.code : 'UNKNOWN');
+    }
+  }, [setMeta]);
+
+  const disconnectCloud = useCallback(async () => {
+    const t = metaRef.current.token;
+    await setMeta({ ...EMPTY_SYNC_META });
+    setCloudState({ status: 'off', username: null, lastSyncAt: null, error: null, pending: 0 });
+    if (t) { try { await cloud.logout(t); } catch { /* offline: the session simply expires unused */ } }
+  }, [setMeta]);
 
   const toast = useCallback((text: string, kind: ToastKind = 'success') => {
     const id = ++toastId.current;
@@ -67,8 +162,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const ps = loadedPlans.map((p) => attachMonthPayments(p, roundingUnit(s.decimals)));
         await Promise.all(ps.filter((p, i) => p !== loadedPlans[i]).map((p) => savePlan(p)));
         setPlans(ps);
+        plansRef.current = ps;
         setSettings(s);
         requestPersistence();
+        const m = await loadSyncMeta();
+        metaRef.current = m;
+        setCloudState({ status: m.token ? 'pending' : 'off', username: m.username, lastSyncAt: m.lastSyncAt, error: null, pending: m.dirty.length + m.tombstones.length });
+        if (m.token) void syncNowRef.current();
       } catch (e) {
         console.error(e);
         setDbError('تعذّر فتح التخزين المحلي في هذا المتصفح (قد يكون في وضع التصفح الخاص). يمكنك الحساب، لكن الحفظ قد لا يعمل.');
@@ -76,8 +176,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setLoaded(true);
       }
     })();
-    const on = () => setOnline(true);
-    const off = () => setOnline(false);
+    const on = () => { setOnline(true); void syncNowRef.current(); };
+    const off = () => { setOnline(false); if (metaRef.current.token) setCloudState((c) => ({ ...c, status: 'offline' })); };
+    const vis = () => { if (document.visibilityState === 'visible') void syncNowRef.current(); };
+    document.addEventListener('visibilitychange', vis);
+    const every = window.setInterval(() => { if (document.visibilityState === 'visible') void syncNowRef.current(); }, 60_000);
     const bip = (e: Event) => { e.preventDefault(); setInstallPrompt(e); };
     window.addEventListener('online', on);
     window.addEventListener('offline', off);
@@ -86,6 +189,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       window.removeEventListener('online', on);
       window.removeEventListener('offline', off);
       window.removeEventListener('beforeinstallprompt', bip);
+      document.removeEventListener('visibilitychange', vis);
+      window.clearInterval(every);
     };
   }, []);
 
@@ -114,23 +219,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
     try {
       await savePlan(p);
+      markDirty([p.id]);
       return true;
     } catch (e) {
       console.error(e);
       toast('تعذّر الحفظ في التخزين المحلي. صدّر نسخة احتياطية حتى لا تفقد بياناتك.', 'error');
       return false;
     }
-  }, [toast]);
+  }, [toast, markDirty]);
 
   const removePlan = useCallback(async (id: string) => {
     setPlans((ps) => ps.filter((p) => p.id !== id));
-    try { await deletePlanFromDB(id); } catch { toast('تعذّر حذف الخطة من التخزين.', 'error'); }
-  }, [toast]);
+    try { await deletePlanFromDB(id); markDirty([], [id]); } catch { toast('تعذّر حذف الخطة من التخزين.', 'error'); }
+  }, [toast, markDirty]);
 
   const replacePlans = useCallback(async (ps: Plan[]) => {
+    const before = plansRef.current.map((p) => p.id);
     await replaceAllPlans(ps);
-    setPlans([...ps].sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1)));
-  }, []);
+    const sorted = [...ps].sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+    plansRef.current = sorted;
+    setPlans(sorted);
+    const keep = new Set(ps.map((p) => p.id));
+    markDirty(ps.map((p) => p.id), before.filter((id) => !keep.has(id)));
+  }, [markDirty]);
 
   const updateSettings = useCallback(async (patch: Partial<Settings>) => {
     const next = { ...settings, ...patch };
@@ -154,6 +265,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const activePlan = useMemo(() => plans.find((p) => p.id === settings.activePlanId) ?? plans[0], [plans, settings.activePlanId]);
 
   const value: AppState = {
+    cloudState, connectCloud, disconnectCloud, syncNow,
     loaded, dbError, plans, settings, unit: roundingUnit(settings.decimals), online, installPrompt, toasts, confirmReq,
     getPlan, activePlan, upsertPlan, removePlan, replacePlans, updateSettings, apply, toast, dismissToast, confirm, closeConfirm,
     clearInstallPrompt: () => setInstallPrompt(null),

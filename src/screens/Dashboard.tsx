@@ -11,14 +11,17 @@ import { StatusPill } from '../components/Status';
 import { PrintView, exportCSV } from '../components/PrintView';
 
 export function Dashboard() {
-  const { plans, activePlan: plan, settings, updateSettings, confirm, apply, unit } = useApp();
+  const { plans, activePlan: plan, settings, updateSettings, confirm, apply, unit, cloudState } = useApp();
 
   if (!plan) {
     return (
       <Card className="p-4">
         <EmptyState icon="calendar" title="لا توجد خطط تقسيط بعد"
           body="أنشئ خطتك الأولى: أدخل المبلغ والقسط الشهري، وسيحسب التطبيق المدة وتاريخ آخر قسط ويحفظ كل شيء على جهازك."
-          action={<Button variant="primary" icon={<Icon name="plus" size={18} />} onClick={() => go('/new')}>إنشاء خطة تقسيط جديدة</Button>} />
+          action={<div className="flex flex-wrap justify-center gap-2">
+            <Button variant="primary" icon={<Icon name="plus" size={18} />} onClick={() => go('/new')}>إنشاء خطة تقسيط جديدة</Button>
+            {cloudState.status === 'off' && <Button icon={<Icon name="cloud" size={18} />} onClick={() => go('/backup')}>لدي حساب — استرجاع خططي</Button>}
+          </div>} />
       </Card>
     );
   }
@@ -37,6 +40,13 @@ export function Dashboard() {
   return (
     <div className="grid gap-4">
       <PrintView plan={plan} />
+      {cloudState.status === 'off' && (
+        <button onClick={() => go('/backup')} className="no-print flex items-center gap-3 rounded-2xl border border-saffron-strong/50 bg-saffron-bg/70 px-4 py-3 text-right">
+          <Icon name="cloud" size={22} className="text-saffron shrink-0" />
+          <span className="flex-1 text-[13.5px] font-semibold text-ink-2 leading-relaxed">خططك محفوظة على هذا الجهاز فقط. فعّل <b>الحفظ السحابي</b> حتى لا تضيع.</span>
+          <Icon name="chevron" size={16} className="text-muted shrink-0" />
+        </button>
+      )}
       <section className="hero-card p-5 sm:p-6 no-print">
         <div className="flex items-center gap-2 justify-between">
           <div className="flex items-center gap-2 min-w-0">
