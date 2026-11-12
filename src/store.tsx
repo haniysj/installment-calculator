@@ -15,7 +15,7 @@ export interface CloudState { status: SyncStatus; username: string | null; lastS
 
 interface AppState {
   cloudState: CloudState;
-  connectCloud: (mode: 'register' | 'login', username: string, pin: string) => Promise<string | null>;
+  connectCloud: (mode: 'setup' | 'unlock', pin: string) => Promise<string | null>;
   disconnectCloud: () => Promise<void>;
   syncNow: () => Promise<void>;
   loaded: boolean;
@@ -127,11 +127,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     scheduleSync();
   }, [setMeta, scheduleSync]);
 
-  const connectCloud = useCallback(async (mode: 'register' | 'login', username: string, pin: string) => {
+  const connectCloud = useCallback(async (mode: 'setup' | 'unlock', pin: string) => {
     try {
-      const s = mode === 'register' ? await cloud.register(username, pin) : await cloud.login(username, pin);
+      const s = mode === 'setup' ? await cloud.setup(pin) : await cloud.unlock(pin);
       // everything on this device is sent once; the server keeps the newest copy of each plan
-      await setMeta({ ...EMPTY_SYNC_META, token: s.token, username: s.username, dirty: plansRef.current.map((p) => p.id) });
+      await setMeta({ ...EMPTY_SYNC_META, token: s.token, username: null, dirty: plansRef.current.map((p) => p.id) });
       setCloudState((c) => ({ ...c, status: 'pending', error: null }));
       await syncNowRef.current();
       return null;

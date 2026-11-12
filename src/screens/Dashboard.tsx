@@ -20,7 +20,7 @@ export function Dashboard() {
           body="أنشئ خطتك الأولى: أدخل المبلغ والقسط الشهري، وسيحسب التطبيق المدة وتاريخ آخر قسط ويحفظ كل شيء على جهازك."
           action={<div className="flex flex-wrap justify-center gap-2">
             <Button variant="primary" icon={<Icon name="plus" size={18} />} onClick={() => go('/new')}>إنشاء خطة تقسيط جديدة</Button>
-            {cloudState.status === 'off' && <Button icon={<Icon name="cloud" size={18} />} onClick={() => go('/backup')}>لدي حساب — استرجاع خططي</Button>}
+            {cloudState.status === 'off' && <Button icon={<Icon name="cloud" size={18} />} onClick={() => go('/backup')}>لدي رمز سري — استرجاع خططي</Button>}
           </div>} />
       </Card>
     );

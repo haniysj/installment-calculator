@@ -25,15 +25,19 @@ async function call<T>(fn: string, args: Record<string, unknown>): Promise<T> {
     const code = typeof data?.message === 'string' && data.message.startsWith('IC_') ? data.message : res.status >= 500 ? 'SERVER' : 'UNKNOWN';
     throw new CloudError(code);
   }
-  if (data && typeof data === 'object' && typeof data.error === 'string') throw new CloudError(data.error);
+  if (data && typeof data === 'object' && typeof data.error === 'string') {
+    throw new CloudError(data.error === 'IC_INVALID' && Number.isFinite(data.left) ? `IC_INVALID:${data.left}` : data.error);
+  }
   return data as T;
 }
 
-export interface Session { token: string; username: string }
+export interface Session { token: string }
 
 export const cloud = {
-  register: (username: string, pin: string) => call<Session>('register', { username, pin }),
-  login: (username: string, pin: string) => call<Session>('login', { username, pin }),
+  /** has a secret code been set for this app yet? */
+  status: () => call<{ exists: boolean }>('status', {}),
+  setup: (pin: string) => call<Session>('setup', { pin }),
+  unlock: (pin: string) => call<Session>('unlock', { pin }),
   sync: (token: string, changes: Change[], since: number) => call<{ cursor: number; plans: RemoteRow[] }>('sync', { token, changes, since }),
   logout: (token: string) => call<null>('logout', { token }),
 };
@@ -41,13 +45,19 @@ export const cloud = {
 export function cloudMessage(code: string): string {
   if (code.startsWith('IC_LOCKED')) {
     const n = Number(code.split(':')[1] || 15);
-    return `تم إيقاف الدخول مؤقتاً بعد 5 محاولات خاطئة. حاول بعد ${n} دقيقة.`;
+    const t = n >= 60 ? `${Math.round(n / 60)} ساعة` : `${n} دقيقة`;
+    return `تم إيقاف الدخول مؤقتاً بعد 5 محاولات خاطئة. حاول بعد ${t}.`;
+  }
+  if (code.startsWith('IC_INVALID')) {
+    const left = Number(code.split(':')[1]);
+    return Number.isFinite(left) && left > 0
+      ? `الرمز السري غير صحيح. بقيت ${left} ${left === 1 ? 'محاولة' : 'محاولات'} قبل الإيقاف المؤقت.`
+      : 'الرمز السري غير صحيح.';
   }
   switch (code) {
-    case 'IC_TAKEN': return 'اسم المستخدم مستخدم من قبل. اختر اسماً آخر، أو اختر «لدي حساب» إذا كان حسابك.';
-    case 'IC_USERNAME': return 'اسم المستخدم من 3 إلى 40 حرفاً.';
-    case 'IC_PIN_FORMAT': return 'الرمز السري من 4 إلى 8 أرقام.';
-    case 'IC_INVALID': return 'اسم المستخدم أو الرمز السري غير صحيح.';
+    case 'IC_EXISTS': return 'تم تعيين رمز سري لهذا التطبيق من قبل. أدخل الرمز للدخول.';
+    case 'IC_NO_ACCOUNT': return 'لم يُعيَّن رمز سري بعد. عيّن رمزاً جديداً.';
+    case 'IC_PIN_FORMAT': return 'الرمز السري من 6 إلى 8 أرقام.';
     case 'IC_SESSION': return 'انتهت جلسة الحفظ السحابي على هذا الجهاز. سجّل الدخول من جديد.';
     case 'NETWORK': return 'لا يوجد اتصال بالإنترنت. خططك محفوظة على الجهاز وستُرفع تلقائياً عند عودة الاتصال.';
     case 'IC_TOO_BIG': return 'إحدى الخطط كبيرة جداً للحفظ السحابي.';

@@ -60,38 +60,52 @@ begin
   return v_id;
 end $$;
 
-create or replace function installments.ic_register(p_username text, p_pin text) returns jsonb
+-- ── v2: one account per app, unlocked by a secret code only (no username) ──
+alter table installments.accounts add column if not exists lock_level int not null default 0;
+create unique index if not exists accounts_single_owner on installments.accounts ((true));
+drop function if exists installments.ic_register(text, text);
+drop function if exists installments.ic_login(text, text);
+
+create or replace function installments.ic_status() returns jsonb
+language sql set search_path = '' as $$
+  select jsonb_build_object('exists', exists (select 1 from installments.accounts))
+$$;
+
+-- First time only: choose the secret code (6–8 digits).
+create or replace function installments.ic_setup(p_pin text) returns jsonb
 language plpgsql set search_path = '' as $$
-declare v_user text := installments.norm_username(p_username); v_id uuid;
+declare v_id uuid;
 begin
-  if char_length(v_user) < 3 or char_length(v_user) > 40 then raise exception 'IC_USERNAME'; end if;
-  if p_pin is null or p_pin !~ '^[0-9]{4,8}$' then raise exception 'IC_PIN_FORMAT'; end if;
-  if exists (select 1 from installments.accounts where username = v_user) then raise exception 'IC_TAKEN'; end if;
+  if p_pin is null or p_pin !~ '^[0-9]{6,8}$' then raise exception 'IC_PIN_FORMAT'; end if;
+  if exists (select 1 from installments.accounts) then raise exception 'IC_EXISTS'; end if;
   insert into installments.accounts(username, pin_hash)
-  values (v_user, public.crypt(p_pin, public.gen_salt('bf', 10)))
+  values ('owner', public.crypt(p_pin, public.gen_salt('bf', 10)))
   returning id into v_id;
-  return jsonb_build_object('token', installments.new_session(v_id), 'username', v_user);
+  return jsonb_build_object('token', installments.new_session(v_id));
 end $$;
 
-create or replace function installments.ic_login(p_username text, p_pin text) returns jsonb
+-- Unlock on any device. 5 wrong codes lock it: 15 min, then 30, 60 … up to 24 h.
+create or replace function installments.ic_unlock(p_pin text) returns jsonb
 language plpgsql set search_path = '' as $$
-declare v_user text := installments.norm_username(p_username); a installments.accounts;
+declare a installments.accounts; v_mins int;
 begin
-  select * into a from installments.accounts where username = v_user for update;
-  if not found then raise exception 'IC_INVALID'; end if;
+  select * into a from installments.accounts limit 1 for update;
+  if not found then raise exception 'IC_NO_ACCOUNT'; end if;
   if a.locked_until is not null and a.locked_until > now() then
     raise exception 'IC_LOCKED:%', ceil(extract(epoch from (a.locked_until - now())) / 60)::int;
   end if;
   if a.pin_hash <> public.crypt(coalesce(p_pin, ''), a.pin_hash) then
-    update installments.accounts
-       set failed_attempts = case when a.failed_attempts + 1 >= 5 then 0 else a.failed_attempts + 1 end,
-           locked_until = case when a.failed_attempts + 1 >= 5 then now() + interval '15 minutes' else null end
-     where id = a.id;
-    -- return instead of raise so the failed attempt is kept
-    return jsonb_build_object('error', case when a.failed_attempts + 1 >= 5 then 'IC_LOCKED:15' else 'IC_INVALID' end);
+    if a.failed_attempts + 1 >= 5 then
+      v_mins := least(1440, 15 * power(2, a.lock_level)::int);
+      update installments.accounts set failed_attempts = 0, lock_level = a.lock_level + 1,
+             locked_until = now() + make_interval(mins => v_mins) where id = a.id;
+      return jsonb_build_object('error', 'IC_LOCKED:' || v_mins);
+    end if;
+    update installments.accounts set failed_attempts = a.failed_attempts + 1 where id = a.id;
+    return jsonb_build_object('error', 'IC_INVALID', 'left', 4 - a.failed_attempts);
   end if;
-  update installments.accounts set failed_attempts = 0, locked_until = null where id = a.id;
-  return jsonb_build_object('token', installments.new_session(a.id), 'username', a.username);
+  update installments.accounts set failed_attempts = 0, lock_level = 0, locked_until = null where id = a.id;
+  return jsonb_build_object('token', installments.new_session(a.id));
 end $$;
 
 -- Two-way sync. p_changes: [{id, data, deleted, updatedAt}]; a change is kept only if newer than the stored copy.

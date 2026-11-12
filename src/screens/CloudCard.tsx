@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { cloud } from '../lib/cloud';
 import { formatDateShort } from '../lib/dates';
 import { useApp, type SyncStatus } from '../store';
-import { Button, Card, CardTitle, Field, Notice, Segmented } from '../components/ui';
+import { Button, Card, CardTitle, Field, Notice } from '../components/ui';
 import { Icon } from '../components/Icon';
 
 const STATUS: Record<SyncStatus, { text: string; tone: string; dot: string }> = {
@@ -22,11 +23,11 @@ function timeOf(iso: string | null) {
   return `${formatDateShort(local)} ${hh}:${mm}`;
 }
 
-/** Cloud saving: create an account or sign in, then every change is saved online automatically. */
+/** Cloud saving with a secret code only: set it once, then enter it on any device. */
 export function CloudCard() {
-  const { cloudState, connectCloud, disconnectCloud, syncNow, confirm, toast, plans } = useApp();
-  const [mode, setMode] = useState<'register' | 'login'>('register');
-  const [username, setUsername] = useState('');
+  const { cloudState, connectCloud, disconnectCloud, syncNow, confirm, toast, plans, online } = useApp();
+  // null = checking, undefined = could not check (offline)
+  const [exists, setExists] = useState<boolean | null | undefined>(null);
   const [pin, setPin] = useState('');
   const [pin2, setPin2] = useState('');
   const [busy, setBusy] = useState(false);
@@ -34,32 +35,47 @@ export function CloudCard() {
   const on = cloudState.status !== 'off';
   const st = STATUS[cloudState.status];
 
+  const check = () => {
+    setExists(null);
+    cloud.status().then((r) => setExists(!!r?.exists)).catch(() => setExists(undefined));
+  };
+  useEffect(() => { if (!on) check(); }, [on, online]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const digits = (v: string) => v.replace(/[٠-٩]/g, (c) => String(c.charCodeAt(0) - 0x660)).replace(/\D/g, '').slice(0, 8);
-  const userErr = username.trim().length > 0 && username.trim().length < 3 ? 'اسم المستخدم 3 أحرف على الأقل.' : null;
-  const pinErr = pin.length > 0 && pin.length < 4 ? 'الرمز من 4 إلى 8 أرقام.' : null;
-  const matchErr = mode === 'register' && pin2.length > 0 && pin2 !== pin ? 'الرمزان غير متطابقين.' : null;
-  const ready = username.trim().length >= 3 && pin.length >= 4 && (mode === 'login' || pin2 === pin);
+  const setup = exists === false;
+  const pinErr = pin.length > 0 && pin.length < 6 ? 'الرمز من 6 إلى 8 أرقام.' : null;
+  const matchErr = setup && pin2.length > 0 && pin2 !== pin ? 'الرمزان غير متطابقين.' : null;
+  const ready = pin.length >= 6 && (!setup || pin2 === pin);
 
   async function submit() {
     if (!ready || busy) return;
     setBusy(true);
     setError(null);
-    const err = await connectCloud(mode, username.trim(), pin);
+    const err = await connectCloud(setup ? 'setup' : 'unlock', pin);
     setBusy(false);
-    if (err) { setError(err); return; }
+    if (err) {
+      setError(err);
+      if (err.includes('من قبل')) check(); // someone set a code meanwhile → switch to "enter code"
+      return;
+    }
     setPin(''); setPin2('');
-    toast(mode === 'register' ? 'تم إنشاء الحساب وتفعيل الحفظ السحابي.' : 'تم تسجيل الدخول واسترجاع خططك.');
+    toast(setup ? 'تم تعيين الرمز السري وتفعيل الحفظ السحابي.' : 'تم الدخول واسترجاع خططك.');
   }
 
   async function signOut() {
     if (!(await confirm({
       title: 'إيقاف الحفظ السحابي على هذا الجهاز؟',
-      body: 'تبقى الخطط على هذا الجهاز وفي حسابك السحابي، لكن التغييرات الجديدة هنا لن تُرفع حتى تسجّل الدخول مرة أخرى.',
-      confirmText: 'تسجيل الخروج', danger: true,
+      body: 'تبقى الخطط على هذا الجهاز وفي الحفظ السحابي، لكن التغييرات الجديدة هنا لن تُرفع حتى تُدخل الرمز مرة أخرى.',
+      confirmText: 'إيقاف', danger: true,
     }))) return;
     await disconnectCloud();
     toast('تم إيقاف الحفظ السحابي على هذا الجهاز.');
   }
+
+  const pinInput = (id: string, value: string, set: (v: string) => void, auto: string) => (
+    <input id={id} className="field num text-center text-[22px] tracking-[0.5em]" type="password" inputMode="numeric" autoComplete={auto}
+      maxLength={8} value={value} onChange={(e) => set(digits(e.target.value))} />
+  );
 
   return (
     <Card className="p-4 sm:p-5 lg:col-span-2">
@@ -70,45 +86,45 @@ export function CloudCard() {
       {on ? (
         <div className="grid gap-3">
           <dl className="grid grid-cols-2 gap-2 text-[13px]">
-            <div className="rounded-xl bg-card-2 border border-line px-3 py-2"><dt className="text-muted font-bold text-[12px]">الحساب</dt><dd className="font-extrabold break-words">{cloudState.username}</dd></div>
+            <div className="rounded-xl bg-card-2 border border-line px-3 py-2"><dt className="text-muted font-bold text-[12px]">الخطط</dt><dd className="font-extrabold num">{plans.length}</dd></div>
             <div className="rounded-xl bg-card-2 border border-line px-3 py-2"><dt className="text-muted font-bold text-[12px]">آخر حفظ</dt><dd className="font-extrabold num">{timeOf(cloudState.lastSyncAt)}</dd></div>
           </dl>
           {cloudState.error && <Notice tone={cloudState.status === 'offline' ? 'saffron' : 'rose'}>{cloudState.error}</Notice>}
-          <p className="text-[13px] text-muted leading-relaxed">كل تعديل يُحفظ على الجهاز فوراً ويُرفع لحسابك تلقائياً. على جهاز جديد سجّل الدخول بنفس الاسم والرمز فتظهر خططك.</p>
+          <p className="text-[13px] text-muted leading-relaxed">كل تعديل يُحفظ على الجهاز فوراً ويُرفع تلقائياً. على جهاز آخر افتح «الحفظ» وأدخل نفس الرمز السري فتظهر خططك.</p>
           <div className="flex flex-wrap gap-2">
             <Button variant="primary" icon={<Icon name="refresh" size={17} />} disabled={cloudState.status === 'syncing'} onClick={() => syncNow()}>حفظ الآن</Button>
-            <Button variant="danger" className="ms-auto" icon={<Icon name="x" size={16} />} onClick={signOut}>تسجيل الخروج</Button>
+            <Button variant="danger" className="ms-auto" icon={<Icon name="x" size={16} />} onClick={signOut}>إيقاف على هذا الجهاز</Button>
           </div>
+        </div>
+      ) : exists === null ? (
+        <p className="text-muted text-[14px] py-3" role="status">جارٍ التحقق…</p>
+      ) : exists === undefined ? (
+        <div className="grid gap-3">
+          <Notice tone="saffron">لا يمكن الوصول للحفظ السحابي الآن. تأكد من الاتصال بالإنترنت.</Notice>
+          <div><Button icon={<Icon name="refresh" size={16} />} onClick={check}>إعادة المحاولة</Button></div>
         </div>
       ) : (
         <form className="grid gap-3.5" onSubmit={(e) => { e.preventDefault(); submit(); }}>
           {cloudState.error && <Notice tone="rose">{cloudState.error}</Notice>}
-          <Notice tone="saffron" icon="info">خططك الآن محفوظة على هذا الجهاز فقط، وقد تضيع إذا مُسحت بيانات المتصفح. فعّل الحفظ السحابي لتبقى محفوظة دائماً وتظهر على أي جهاز.</Notice>
-          <Segmented ariaLabel="نوع الدخول" value={mode} onChange={(v) => { setMode(v); setError(null); }} options={[
-            { value: 'register', label: 'حساب جديد' },
-            { value: 'login', label: 'لدي حساب' },
-          ]} />
-          <Field label="اسم المستخدم" htmlFor="cl-user" error={userErr} hint={mode === 'register' ? 'اختر اسماً تتذكره (عربي أو إنجليزي)، مثل: hani' : undefined}>
-            <input id="cl-user" className="field" autoComplete="username" value={username} maxLength={40} onChange={(e) => setUsername(e.target.value)} />
-          </Field>
+          {setup
+            ? <Notice tone="saffron" icon="info">خططك الآن محفوظة على هذا الجهاز فقط. عيّن رمزاً سرياً لتفعيل الحفظ السحابي، وبه تسترجع خططك على أي جهاز.</Notice>
+            : <p className="text-[13.5px] text-ink-2 leading-relaxed">أدخل الرمز السري لتفعيل الحفظ السحابي على هذا الجهاز واسترجاع خططك.</p>}
           <div className="grid sm:grid-cols-2 gap-3">
-            <Field label="الرمز السري (4–8 أرقام)" htmlFor="cl-pin" error={pinErr}>
-              <input id="cl-pin" className="field num text-left tracking-[0.3em]" type="password" inputMode="numeric" autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
-                value={pin} onChange={(e) => setPin(digits(e.target.value))} />
+            <Field label={setup ? 'رمز سري جديد (6–8 أرقام)' : 'الرمز السري'} htmlFor="cl-pin" error={pinErr}>
+              {pinInput('cl-pin', pin, setPin, setup ? 'new-password' : 'current-password')}
             </Field>
-            {mode === 'register' && (
+            {setup && (
               <Field label="تأكيد الرمز السري" htmlFor="cl-pin2" error={matchErr}>
-                <input id="cl-pin2" className="field num text-left tracking-[0.3em]" type="password" inputMode="numeric" autoComplete="new-password"
-                  value={pin2} onChange={(e) => setPin2(digits(e.target.value))} />
+                {pinInput('cl-pin2', pin2, setPin2, 'new-password')}
               </Field>
             )}
           </div>
           {error && <Notice tone="rose">{error}</Notice>}
-          {mode === 'login' && plans.length > 0 && <p className="text-[12.5px] text-muted">الخطط الموجودة على هذا الجهاز ({plans.length}) ستُضاف إلى حسابك ولن تُحذف.</p>}
-          <p className="text-[12.5px] text-muted">احفظ الرمز في مكان آمن؛ لا يمكن استرجاعه إذا نُسي. بعد 5 محاولات خاطئة يُوقف الدخول 15 دقيقة.</p>
+          {!setup && plans.length > 0 && <p className="text-[12.5px] text-muted">الخطط الموجودة على هذا الجهاز ({plans.length}) ستُضاف للحفظ السحابي ولن تُحذف.</p>}
+          {setup && <p className="text-[12.5px] text-muted">احفظ الرمز في مكان آمن؛ لا يمكن استرجاعه إذا نُسي. 5 محاولات خاطئة توقف الدخول مؤقتاً (15 دقيقة، وتتضاعف مع التكرار).</p>}
           <div className="flex">
             <Button type="submit" variant="primary" disabled={!ready || busy} icon={<Icon name="cloud" size={17} />}>
-              {busy ? 'جارٍ الاتصال…' : mode === 'register' ? 'إنشاء الحساب وتفعيل الحفظ' : 'تسجيل الدخول'}
+              {busy ? 'جارٍ الاتصال…' : setup ? 'تعيين الرمز وتفعيل الحفظ' : 'دخول'}
             </Button>
           </div>
         </form>

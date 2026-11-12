@@ -11,12 +11,15 @@ def phone(b):
     pg.on('pageerror', lambda e: errs.append(str(e)))
     return ctx, pg
 
-def login(pg, mode, user, pin):
+def login(pg, mode, pin):
     pg.goto(B + '/#/backup')
-    pg.get_by_role('radio', name='حساب جديد' if mode == 'register' else 'لدي حساب').click()
-    pg.fill('#cl-user', user); pg.fill('#cl-pin', pin)
-    if mode == 'register': pg.fill('#cl-pin2', pin)
-    pg.get_by_role('button', name='إنشاء الحساب وتفعيل الحفظ' if mode == 'register' else 'تسجيل الدخول').click()
+    pg.wait_for_selector('#cl-pin')
+    pg.fill('#cl-pin', pin)
+    if mode == 'setup':
+        pg.fill('#cl-pin2', pin)
+        pg.get_by_role('button', name='تعيين الرمز وتفعيل الحفظ').click()
+    else:
+        pg.get_by_role('button', name='دخول').click()
 
 with sync_playwright() as p:
     b = p.chromium.launch()
@@ -27,21 +30,22 @@ with sync_playwright() as p:
     a.get_by_role('button', name='حفظ الخطة').click(); a.wait_for_url(re.compile('#/plan/'))
     a.goto(B + '/#/'); expect(a.get_by_text('خططك محفوظة على هذا الجهاز فقط')).to_be_visible()
     a.screenshot(path=f'{OUT}/cloud-01-reminder.png')
-    login(a, 'register', 'Hani Test', '1234')
+    a.goto(B + '/#/backup'); a.wait_for_selector('#cl-pin2')  # first time: choose a code (with confirmation)
+    login(a, 'setup', '246810')
     expect(a.get_by_text('محفوظ سحابياً').first).to_be_visible(timeout=10000)
     a.screenshot(path=f'{OUT}/cloud-02-connected.png', full_page=True)
-    # duplicate name is refused
-    cx, x = phone(b); login(x, 'register', 'hani test', '9999')
-    expect(x.get_by_text('اسم المستخدم مستخدم من قبل').first).to_be_visible()
-    # wrong pin
-    login(x, 'login', 'hani test', '0000')
-    expect(x.get_by_text('غير صحيح').first).to_be_visible()
+    # another phone only gets "enter code" (no second setup), and a wrong code is refused with attempts left
+    cx, x = phone(b); x.goto(B + '/#/backup'); x.wait_for_selector('#cl-pin')
+    assert x.locator('#cl-pin2').count() == 0, 'no setup once a code exists'
+    login(x, 'unlock', '000000')
+    expect(x.get_by_text('بقيت 4 محاولات').first).to_be_visible()
+    x.screenshot(path=f'{OUT}/cloud-05-wrong-code.png')
     cx.close()
 
     # ── phone B: new phone, sign in → plan comes back
     cb, bp = phone(b)
-    bp.goto(B + '/#/'); expect(bp.get_by_role('button', name='لدي حساب — استرجاع خططي')).to_be_visible()
-    login(bp, 'login', 'HANI TEST', '1234')
+    bp.goto(B + '/#/'); expect(bp.get_by_role('button', name='لدي رمز سري — استرجاع خططي')).to_be_visible()
+    login(bp, 'unlock', '246810')
     expect(bp.get_by_text('محفوظ سحابياً').first).to_be_visible(timeout=10000)
     bp.goto(B + '/#/plans'); expect(bp.get_by_text('سيارة').first).to_be_visible()
 
@@ -67,7 +71,7 @@ with sync_playwright() as p:
     ca.close()
     cw, w = phone(b)
     w.goto(B + '/#/'); expect(w.get_by_text('لا توجد خطط تقسيط بعد')).to_be_visible()
-    login(w, 'login', 'hani test', '1234')
+    login(w, 'unlock', '246810')
     expect(w.get_by_text('محفوظ سحابياً').first).to_be_visible(timeout=10000)
     w.goto(B + '/#/'); w.wait_for_timeout(1200)
     t = w.inner_text('main')
@@ -81,8 +85,8 @@ with sync_playwright() as p:
     bp.goto(B + '/#/plans'); expect(bp.get_by_text('لا توجد خطط محفوظة')).to_be_visible()
 
     # sign out keeps local data and stops cloud
-    bp.goto(B + '/#/backup'); bp.get_by_role('button', name='تسجيل الخروج').click()
-    bp.get_by_role('dialog').get_by_role('button', name='تسجيل الخروج').click()
+    bp.goto(B + '/#/backup'); bp.get_by_role('button', name='إيقاف على هذا الجهاز').click()
+    bp.get_by_role('dialog').get_by_role('button', name='إيقاف').click()
     expect(bp.get_by_text('غير مفعّل').first).to_be_visible()
     b.close()
 if errs: print('\n'.join(errs)); sys.exit(1)
